@@ -1,7 +1,7 @@
 # Relay — Product & Architecture Specification
 Status: Implementation-ready draft
 Primary stack: Bun, SvelteKit, TypeScript, SQLite
-Networking: Caddy, Cloudflare Tunnel, Tailscale, imfieldhouse.com subdomains
+Networking: Caddy, Cloudflare Tunnel, Tailscale, example.com subdomains
 ## 1. Purpose
 Relay is a small personal integration and automation control plane. It accepts external inputs such as Pebble Index transcriptions, normalizes and classifies them, routes them to the correct owning application, executes narrowly-scoped automation, and keeps an audit trail of what happened.
 The Hub should normally stay out of the user's daily workflow. Its web UI exists for focused operational work: reviewing inbound captures, debugging classification, inspecting failed deliveries, monitoring one-off coding agents, and configuring integrations.
@@ -371,5 +371,5 @@ workers/
 
 | Interface | Example | Exposure | Responsibilities |
 | --- | --- | --- | --- |
-| Public webhook | capture.imfieldhouse.com | Cloudflare Tunnel / Internet | Only explicit webhook endpoints; minimal attack surface |
-| Internal/admin | integrations.imfieldhouse.com | Tailscale and/or Cloudflare Access | Internal API, admin UI, project execution, configuration |
+| Public webhook | capture.example.com | Cloudflare Tunnel / Internet | Only explicit webhook endpoints; minimal attack surface |
+| Internal/admin | integrations.example.com | Tailscale and/or Cloudflare Access | Internal API, admin UI, project execution, configuration |

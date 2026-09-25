@@ -280,8 +280,8 @@ Objective: Make failures diagnosable in a long-running personal service.
 Objective: Deploy with the intended security boundary using existing infrastructure.
 ### Tasks
 - ☐ Bind public and internal listeners to appropriate local interfaces/ports.
-- ☐ Configure Cloudflare Tunnel/Caddy so capture.imfieldhouse.com exposes only the public listener.
-- ☐ Configure integrations.imfieldhouse.com for internal/admin access via Tailscale and/or Cloudflare Access.
+- ☐ Configure Cloudflare Tunnel/Caddy so capture.example.com exposes only the public listener.
+- ☐ Configure integrations.example.com for internal/admin access via Tailscale and/or Cloudflare Access.
 - ☐ Verify no route leakage from internal listener to public hostname.
 - ☐ Configure TLS/proxy headers correctly.
 - ☐ Set request limits at the proxy as an additional layer.
