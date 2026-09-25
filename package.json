@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun src/dev-server.ts",
-    "build": "vite build",
+    "dev": "bun --bun --env-file .env src/dev-server.ts",
+    "build": "bun --bun --env-file .env vite build",
     "start": "bun src/internal-server.ts",
     "start:public": "bun src/public-webhook-server.ts",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
