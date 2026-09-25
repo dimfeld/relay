@@ -3,6 +3,8 @@
 defaultExecutor: claude-code
 quality: hobby
 developmentWorkflow: squash-rebase
+generate:
+  queueWhenDone: true
 lifecycle:
   commands:
     - title: Install dependencies
