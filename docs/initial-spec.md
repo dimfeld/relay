@@ -230,15 +230,17 @@ Suggested tables:
 - configuration
 Domain tables for tasks, reminders, packages, and long-lived notes should not be canonical Hub storage once an owning application exists.
 ## 19. AI Boundary
-The LLM interprets intent; ordinary TypeScript determines what operations are permitted and how they execute. All model outputs that affect routing or side effects must validate against a schema (for example, Zod).
+Use TypeSafe AI Jev to classify an event into a fixed action type. Use GPT-6 Luna through the Vercel AI SDK to extract the fields for that type and for other in-process language tasks. Codex and Claude handle coding agent execution; Luna does not serve as a coding agent. Ordinary TypeScript determines what operations are permitted and how they execute. Validate extracted fields with Zod before routing or side effects. See [Model Pipeline](model-pipeline.md) for the required call sequence, configuration, failure behavior, and tests.
 ```text
 normalize
     ↓
 deterministic signals
     ↓
-LLM classification
+Jev action choice
     ↓
-schema validation
+Luna field extraction for the selected action
+    ↓
+Zod schema validation
     ↓
 policy / authorization
     ↓

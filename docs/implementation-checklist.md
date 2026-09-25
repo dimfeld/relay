@@ -4,7 +4,7 @@ Purpose: Sequential implementation plan for an unattended coding agent.
 - ☐ Use Bun, SvelteKit, TypeScript, and SQLite. oxfmt and oxlint as well.
 - ☐ Keep the public webhook listener and internal/admin listener separate.
 - ☐ Do not make Relay the canonical owner of tasks, reminders, packages, or project work.
-- ☐ Use schema-validated structured outputs for LLM classification.
+- ☐ Use TypeSafe AI Jev for typed action classification and GPT-6 Luna through the Vercel AI SDK for schema-validated field extraction and other in-process language tasks, excluding coding agent execution.
 - ☐ Do not allow model-generated arbitrary shell commands, filesystem paths, merge commands, or deployment commands.
 - ☐ Persist original incoming data before performing interpretation or side effects.
 - ☐ Make side-effecting operations idempotent where practical.
@@ -84,21 +84,25 @@ Objective: Provide a small durable queue using SQLite.
 - ☐ Dead jobs remain inspectable in the database.
 ## Phase 5 — Classification and Schema Validation
 Objective: Turn normalized voice captures into explicit typed actions.
+Follow [Model Pipeline](model-pipeline.md) for provider roles and the required failure states.
 ### Tasks
 - ☐ Define Zod schemas for task.create, reminder.create, note.create, note.append, command.execute, and unknown.
-- ☐ Define a classifier provider interface independent of a specific LLM SDK.
-- ☐ Implement one initial provider/model configuration.
-- ☐ Build a system prompt that requests only schema-valid structured output.
-- ☐ Record model/provider, latency, token/cost metadata when available.
+- ☐ Define separate Jev classification and Luna extraction interfaces so workers do not depend on either SDK.
+- ☐ Add the official TypeSafe AI SDK and use Jev `choice` to select only an action type.
+- ☐ Add `ai` and `@ai-sdk/openai`; use GPT-6 Luna with `Output.object({ schema })` to extract fields for the selected action type.
+- ☐ Extend startup configuration with TypeSafe and OpenAI API keys plus Jev and Luna model IDs.
+- ☐ Build extraction instructions that keep the Jev action type fixed and request only fields in its schema.
+- ☐ Record provider/model and latency for both calls, plus probabilities, confidence, usage, and cost when available.
 - ☐ Store a short operational explanation only; do not persist hidden chain-of-thought.
-- ☐ Validate every model result before routing.
-- ☐ On schema failure, retry once with a repair request or mark needs_review.
+- ☐ Validate Jev's selected label and Luna's fields before routing; do not call Luna for `unknown`.
+- ☐ On extraction schema failure, retry once with a repair request or mark needs_review; mark needs_review if repair fails.
+- ☐ Preserve the event and create a new processing attempt for every retry or reclassification.
 - ☐ Add deterministic preprocessing for obvious wake-name detection, project alias hints, and other exact signals.
 ### Done when
 - ☐ Representative utterances classify into all supported action types.
-- ☐ Invalid model JSON cannot trigger a side effect.
+- ☐ Invalid or mismatched Luna output cannot trigger a side effect.
 - ☐ Classifier failure leaves the source event recoverable and visible as needs_review.
-- ☐ Tests cover reminder parsing, task classification, note creation, command classification, and unknown input.
+- ☐ Tests cover each action label, field extraction, provider failures, note targets, coding project validation, and unknown input.
 ## Phase 6 — Context and Note Continuation
 Objective: Allow recent related captures to influence classification without creating unbounded conversational state.
 ### Tasks
@@ -183,6 +187,7 @@ Objective: Run one-off coding tasks safely without requiring Tim.
 - ☐ Capture stdout/stderr incrementally into execution_logs.
 - ☐ Support timeout/cancellation.
 - ☐ Create an unattended prompt wrapper with repository/task context and no-interactive-question instruction.
+- ☐ Keep coding executors separate from the Jev and Luna adapters; pass only validated coding requests to an executor, and do not use Luna to plan, write, review, or run code.
 - ☐ Do not allow the classifier to invent arbitrary executable names or CLI flags outside the executor adapter.
 - ☐ Record requested provider/model and actual provider/model.
 ### Done when
