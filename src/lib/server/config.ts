@@ -32,6 +32,8 @@ const schema = z
       });
       return z.NEVER;
     }),
+    PEBBLE_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
+    PEBBLE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
     INTERNAL_SERVICE_CREDENTIALS: credentials,
     MODEL_PROVIDER: nonEmpty,
     MODEL_NAME: nonEmpty,
