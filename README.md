@@ -2,6 +2,10 @@
 
 Relay is an integration service. The SvelteKit app runs on the internal listener. A separate Bun process owns the public webhook listener.
 
+## SvelteKit conventions
+
+Use SvelteKit [remote functions](https://svelte.dev/docs/kit/remote-functions) for data queries and form submissions by default. Use another SvelteKit pattern when a specific feature or requirement gives a better reason.
+
 ## Run locally
 
 Copy `.env.example` to `.env` and set the secrets, service tokens, and model. Then run:
