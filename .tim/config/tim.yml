@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/dimfeld/llmutils/main/schema/tim-config-schema.json
+
+defaultExecutor: claude-code
+quality: hobby
+developmentWorkflow: squash-rebase
+lifecycle:
+  commands:
+    - title: Install dependencies
+      command: bun install
+postApplyCommands:
+  - title: Format code
+    command: bun run format
+    allowFailure: true
+    hideOutputOnSuccess: true
