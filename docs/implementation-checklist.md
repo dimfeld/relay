@@ -29,24 +29,24 @@ Objective: Create the application foundation and establish clear module boundari
 ## Phase 2 — SQLite Foundation and Migrations
 Objective: Create durable storage for events, attempts, jobs, routing, delivery, and executions.
 ### Tasks
-- ☐ Choose and configure a SQLite access layer compatible with Bun.
-- ☐ Implement migrations.
-- ☐ Create incoming_events table with immutable source payload storage.
-- ☐ Create processing_attempts table for stage-by-stage history.
-- ☐ Create jobs table with status, payload, attempts, available_at, locked_at, and locked_by.
-- ☐ Create classifications table storing validated result plus model/provider metadata.
-- ☐ Create integrations and event_routes tables.
-- ☐ Create deliveries table.
-- ☐ Create projects table.
-- ☐ Create executions and execution_logs tables.
-- ☐ Create action_results/configuration tables as needed.
-- ☐ Add indexes for event lookup, job claiming, pending deliveries, and execution status.
-- ☐ Add repository/data-access modules rather than using raw SQL throughout route handlers.
+- ☑ Choose and configure a SQLite access layer compatible with Bun.
+- ☑ Implement migrations.
+- ☑ Create incoming_events table with immutable source payload storage.
+- ☑ Create processing_attempts table for stage-by-stage history.
+- ☑ Create jobs table with status, payload, attempts, available_at, locked_at, and locked_by.
+- ☑ Create classifications table storing validated result plus model/provider metadata.
+- ☑ Create integrations and event_routes tables.
+- ☑ Create deliveries table.
+- ☑ Create projects table.
+- ☑ Create executions and execution_logs tables.
+- ☑ Create action_results/configuration tables as needed.
+- ☑ Add indexes for event lookup, job claiming, pending deliveries, and execution status.
+- ☑ Add repository/data-access modules rather than using raw SQL throughout route handlers.
 ### Done when
-- ☐ Fresh database can be created entirely from migrations.
-- ☐ Migration command is idempotent.
-- ☐ Unit/integration tests demonstrate insert/read/update flows for each major table.
-- ☐ Original incoming payload cannot be accidentally overwritten by normal repository APIs.
+- ☑ Fresh database can be created entirely from migrations.
+- ☑ Migration command is idempotent.
+- ☑ Unit/integration tests demonstrate insert/read/update flows for each major table.
+- ☑ Original incoming payload cannot be accidentally overwritten by normal repository APIs.
 ## Phase 3 — Public Pebble Webhook
 Objective: Accept Pebble Index transcriptions through a minimal internet-facing endpoint.
 ### Tasks

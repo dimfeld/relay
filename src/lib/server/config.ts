@@ -47,7 +47,7 @@ const schema = z
 export type AppConfig = z.infer<typeof schema>;
 
 export function loadConfig(
-  environment: Record<string, string | undefined> = process.env,
+  environment: Record<string, string | undefined> = process.env
 ): AppConfig {
   const result = schema.safeParse(environment);
   if (result.success) return result.data;

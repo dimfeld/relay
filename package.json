@@ -7,6 +7,7 @@
     "build": "bun --bun --env-file .env vite build",
     "start": "bun src/internal-server.ts",
     "start:public": "bun src/public-webhook-server.ts",
+    "db:migrate": "bun src/lib/server/db/migrate.ts",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "oxlint .",
     "format:check": "oxfmt --check src tests package.json tsconfig.json vite.config.ts svelte.config.js",

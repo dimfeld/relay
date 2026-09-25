@@ -35,7 +35,7 @@ describe("loadConfig", () => {
 
   test("rejects a shared listener port", () => {
     expect(() => loadConfig({ ...validEnvironment, INTERNAL_PORT: "4310" })).toThrow(
-      /must differ from PUBLIC_PORT/,
+      /must differ from PUBLIC_PORT/
     );
   });
 });
