@@ -13,19 +13,19 @@ Purpose: Sequential implementation plan for an unattended coding agent.
 ## Phase 1 — Project Skeleton
 Objective: Create the application foundation and establish clear module boundaries.
 ### Tasks
-- ☐ Initialize the Bun/SvelteKit TypeScript application.
-- ☐ Add environment configuration for PUBLIC_PORT, INTERNAL_PORT, DATABASE_PATH, public webhook secret(s), internal service credentials, and model/executor settings.
-- ☐ Create server module directories for db, events, classifier, routing, integrations, queue, commands, projects, agents, auth, and logging.
-- ☐ Add a single typed configuration loader that validates required environment variables at startup.
-- ☐ Add structured application logging with correlation/event IDs as fields.
-- ☐ Add a health endpoint to the internal listener only.
-- ☐ Add lint/typecheck/test scripts and a CI-friendly validation command.
+- ☑ Initialize the Bun/SvelteKit TypeScript application.
+- ☑ Add environment configuration for PUBLIC_PORT, INTERNAL_PORT, DATABASE_PATH, public webhook secret(s), internal service credentials, and model/executor settings.
+- ☑ Create server module directories for db, events, classifier, routing, integrations, queue, commands, projects, agents, auth, and logging.
+- ☑ Add a single typed configuration loader that validates required environment variables at startup.
+- ☑ Add structured application logging with correlation/event IDs as fields.
+- ☑ Add a health endpoint to the internal listener only.
+- ☑ Add lint/typecheck/test scripts and a CI-friendly validation command.
 ### Done when
-- ☐ App boots under Bun.
-- ☐ Configuration errors fail fast with a clear message.
-- ☐ Internal health endpoint responds successfully.
-- ☐ Public listener exposes no health/admin endpoint.
-- ☐ Typecheck and baseline tests pass.
+- ☑ App boots under Bun.
+- ☑ Configuration errors fail fast with a clear message.
+- ☑ Internal health endpoint responds successfully.
+- ☑ Public listener exposes no health/admin endpoint.
+- ☑ Typecheck and baseline tests pass.
 ## Phase 2 — SQLite Foundation and Migrations
 Objective: Create durable storage for events, attempts, jobs, routing, delivery, and executions.
 ### Tasks
