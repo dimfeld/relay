@@ -125,26 +125,91 @@ export function claimJob<TPayload = unknown>(
 export function completeJob<TPayload = unknown>(
   db: Database,
   id: string,
+  workerId: string,
   at = nowIso()
 ): Job<TPayload> | null {
-  db.query(
-    `UPDATE jobs SET status = 'succeeded', locked_at = NULL, locked_by = NULL, updated_at = ? WHERE id = ?`
-  ).run(at, id);
-  return getJob<TPayload>(db, id);
+  const row = db
+    .query<JobRow, [string, string, string]>(
+      `UPDATE jobs SET status = 'succeeded', locked_at = NULL, locked_by = NULL, updated_at = ?
+       WHERE id = ? AND status = 'running' AND locked_by = ?
+       RETURNING *`
+    )
+    .get(at, id, workerId);
+  return row ? mapJob<TPayload>(row) : null;
 }
 
 export function failJob<TPayload = unknown>(
   db: Database,
   id: string,
+  workerId: string,
   error: string,
-  availableAt = nowIso()
+  availableAt = nowIso(),
+  retryable = true,
+  at = nowIso()
 ): Job<TPayload> | null {
-  const job = getJob<TPayload>(db, id);
-  if (!job) return null;
-  const status: JobStatus = job.attempts >= job.maxAttempts ? "dead" : "pending";
-  db.query(
-    `UPDATE jobs SET status = ?, available_at = ?, locked_at = NULL, locked_by = NULL,
-       last_error = ?, updated_at = ? WHERE id = ?`
-  ).run(status, availableAt, error, nowIso(), id);
-  return getJob<TPayload>(db, id);
+  // Non-retryable errors become failed; retryable errors become dead after the final attempt.
+  const row = db
+    .query<JobRow, [number, string, string, string, string, string]>(
+      `UPDATE jobs SET
+         status = CASE WHEN ? = 0 THEN 'failed'
+                       WHEN attempts >= max_attempts THEN 'dead'
+                       ELSE 'pending' END,
+         available_at = ?, locked_at = NULL, locked_by = NULL, last_error = ?, updated_at = ?
+       WHERE id = ? AND status = 'running' AND locked_by = ?
+       RETURNING *`
+    )
+    .get(retryable ? 1 : 0, availableAt, error, at, id, workerId);
+  return row ? mapJob<TPayload>(row) : null;
+}
+
+export function recoverStaleJobs(
+  db: Database,
+  staleBefore: string,
+  at = nowIso(),
+  queue?: string
+): number {
+  const sql =
+    queue === undefined
+      ? `UPDATE jobs SET
+           status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'pending' END,
+           available_at = ?, locked_at = NULL, locked_by = NULL,
+           last_error = CASE WHEN attempts >= max_attempts THEN 'Job lock went stale.' ELSE last_error END,
+           updated_at = ?
+         WHERE status = 'running' AND locked_at < ?
+         RETURNING id`
+      : `UPDATE jobs SET
+           status = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'pending' END,
+           available_at = ?, locked_at = NULL, locked_by = NULL,
+           last_error = CASE WHEN attempts >= max_attempts THEN 'Job lock went stale.' ELSE last_error END,
+           updated_at = ?
+         WHERE status = 'running' AND locked_at < ? AND queue = ?
+         RETURNING id`;
+  const rows =
+    queue === undefined
+      ? db.query<{ id: string }, [string, string, string]>(sql).all(at, at, staleBefore)
+      : db
+          .query<{ id: string }, [string, string, string, string]>(sql)
+          .all(at, at, staleBefore, queue);
+  return rows.length;
+}
+
+export function listJobs<TPayload = unknown>(
+  db: Database,
+  filters: { status?: JobStatus; queue?: string } = {}
+): Job<TPayload>[] {
+  const conditions: string[] = [];
+  const values: string[] = [];
+  if (filters.status !== undefined) {
+    conditions.push("status = ?");
+    values.push(filters.status);
+  }
+  if (filters.queue !== undefined) {
+    conditions.push("queue = ?");
+    values.push(filters.queue);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = db
+    .query<JobRow, string[]>(`SELECT * FROM jobs ${where} ORDER BY created_at, id`)
+    .all(...values);
+  return rows.map(mapJob<TPayload>);
 }

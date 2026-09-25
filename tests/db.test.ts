@@ -51,6 +51,7 @@ import {
   enqueueJob,
   failJob,
   getJob,
+  listJobs,
 } from "../src/lib/server/db/repositories/jobs";
 import {
   createProject,
@@ -217,17 +218,36 @@ describe("database repositories", () => {
       attempts: 1,
       lockedBy: "worker-1",
     });
-    expect(completeJob(db, first.id)).toMatchObject({ status: "succeeded", lockedBy: null });
+    expect(completeJob(db, first.id, "worker-1")).toMatchObject({
+      status: "succeeded",
+      lockedBy: null,
+    });
 
     expect(claimJob(db, "worker-2", "2026-01-01T00:01:00.000Z")).toMatchObject({ id: second.id });
-    expect(failJob(db, second.id, "temporary", "2026-01-01T00:02:00.000Z")).toMatchObject({
-      status: "pending",
-      lastError: "temporary",
-    });
+    expect(
+      failJob(db, second.id, "worker-2", "temporary", "2026-01-01T00:02:00.000Z")
+    ).toMatchObject({ status: "pending", lastError: "temporary" });
     expect(claimJob(db, "worker-2", "2026-01-01T00:02:00.000Z")).toMatchObject({ attempts: 2 });
-    expect(failJob(db, second.id, "again")).toMatchObject({ status: "dead", attempts: 2 });
+    expect(failJob(db, second.id, "worker-2", "again")).toMatchObject({
+      status: "dead",
+      attempts: 2,
+    });
     expect(getJob(db, second.id)?.lastError).toBe("again");
+    expect(listJobs(db, { status: "dead" })).toMatchObject([{ id: second.id, lastError: "again" }]);
     expect(claimJob(db, "worker-3", "2026-01-01T00:03:00.000Z")).toBeNull();
+
+    const failed = enqueueJob(db, {
+      type: "classify",
+      queue: "classification",
+      payload: {},
+      maxAttempts: 2,
+      availableAt: "2026-01-01T00:00:00.000Z",
+    });
+    claimJob(db, "worker-4", "2026-01-01T00:04:00.000Z", "classification");
+    expect(failJob(db, failed.id, "worker-4", "permanent error", undefined, false)).toMatchObject({
+      status: "failed",
+      attempts: 1,
+    });
   });
 
   test("creates, reads, and updates classifications with model metadata", () => {
