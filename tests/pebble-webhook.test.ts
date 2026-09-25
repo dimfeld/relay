@@ -34,8 +34,6 @@ function makeServer(overrides: Record<string, string> = {}) {
     DATABASE_PATH: "./data/relay.sqlite",
     PEBBLE_WEBHOOK_SECRETS: "secret",
     INTERNAL_SERVICE_CREDENTIALS: '{"mail":"token"}',
-    MODEL_PROVIDER: "openai",
-    MODEL_NAME: "configured-model",
     DEFAULT_EXECUTOR: "codex",
     CODEX_EXECUTABLE: "codex",
     CLAUDE_EXECUTABLE: "claude",

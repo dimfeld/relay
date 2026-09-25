@@ -16,7 +16,7 @@ Keep the Jev and Luna clients in separate adapters. The classifier service coord
 
 ## Configuration
 
-Extend the Phase 1 configuration loader when this pipeline is implemented. Require `TYPESAFE_API_KEY` and `OPENAI_API_KEY` for the worker that runs classification. Configure the Jev model as `jev-latest` and the extraction model as `gpt-6-luna`. Keep model IDs in configuration so an operator can change a deployment without changing code. Do not expose keys to the browser, public listener, logs, or event records. The current `MODEL_PROVIDER` and `MODEL_NAME` placeholders do not yet implement this pipeline.
+Extend the Phase 1 configuration loader when this pipeline is implemented. Require `TYPESAFE_API_KEY` and `OPENAI_API_KEY` for the worker that runs classification. Configure the Jev model as `jev-latest` and the extraction model as `gpt-6-luna`. Keep model IDs in configuration so an operator can change a deployment without changing code. Do not expose keys to the browser, public listener, logs, or event records. `loadClassifierConfig` loads these settings separately from the listener configuration.
 
 ## Extraction rules
 

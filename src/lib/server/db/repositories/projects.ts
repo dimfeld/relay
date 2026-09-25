@@ -120,3 +120,10 @@ export function updateProject<TConfig>(
   }
   return getProject<TConfig>(db, id);
 }
+
+export function listProjects<TConfig = unknown>(db: Database): Project<TConfig>[] {
+  return db
+    .query<ProjectRow, []>("SELECT * FROM projects ORDER BY name")
+    .all()
+    .map(mapProject<TConfig>);
+}

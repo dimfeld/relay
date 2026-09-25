@@ -35,8 +35,7 @@ const schema = z
     PEBBLE_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
     PEBBLE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
     INTERNAL_SERVICE_CREDENTIALS: credentials,
-    MODEL_PROVIDER: nonEmpty,
-    MODEL_NAME: nonEmpty,
+    WAKE_NAME: nonEmpty.optional(),
     DEFAULT_EXECUTOR: z.enum(["codex", "claude"]),
     CODEX_EXECUTABLE: nonEmpty,
     CLAUDE_EXECUTABLE: nonEmpty,
@@ -51,6 +50,13 @@ export type AppConfig = z.infer<typeof schema>;
 export function loadConfig(
   environment: Record<string, string | undefined> = process.env
 ): AppConfig {
+  return parseEnvironment(schema, environment);
+}
+
+function parseEnvironment<T extends z.ZodType>(
+  schema: T,
+  environment: Record<string, string | undefined>
+): z.infer<T> {
   const result = schema.safeParse(environment);
   if (result.success) return result.data;
 
@@ -59,4 +65,22 @@ export function loadConfig(
     return `${name}: ${issue.message}`;
   });
   throw new Error(`Invalid environment configuration:\n${problems.join("\n")}`);
+}
+
+const classifierSchema = z.object({
+  TYPESAFE_API_KEY: nonEmpty,
+  OPENAI_API_KEY: nonEmpty,
+  JEV_MODEL: nonEmpty.default("jev-latest"),
+  LUNA_MODEL: nonEmpty.default("gpt-6-luna"),
+  /** IANA time zone used to resolve relative reminder times such as "tomorrow morning". */
+  TIME_ZONE: nonEmpty.optional(),
+});
+
+export type ClassifierConfig = z.infer<typeof classifierSchema>;
+
+/** Load the provider settings. Only the process that runs the classification worker needs them. */
+export function loadClassifierConfig(
+  environment: Record<string, string | undefined> = process.env
+): ClassifierConfig {
+  return parseEnvironment(classifierSchema, environment);
 }

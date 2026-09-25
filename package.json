@@ -16,6 +16,9 @@
     "validate": "bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.77",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "ai": "^7.0.116",
     "zod": "^4.0.0"
   },
   "devDependencies": {

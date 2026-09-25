@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadConfig } from "../src/lib/server/config";
+import { loadClassifierConfig, loadConfig } from "../src/lib/server/config";
 
 const validEnvironment = {
   PUBLIC_PORT: "4310",
@@ -7,8 +7,6 @@ const validEnvironment = {
   DATABASE_PATH: "./data/relay.sqlite",
   PEBBLE_WEBHOOK_SECRETS: "first,second",
   INTERNAL_SERVICE_CREDENTIALS: '{"mail":"token"}',
-  MODEL_PROVIDER: "openai",
-  MODEL_NAME: "configured-model",
   DEFAULT_EXECUTOR: "codex",
   CODEX_EXECUTABLE: "codex",
   CLAUDE_EXECUTABLE: "claude",
@@ -37,10 +35,10 @@ describe("loadConfig", () => {
   test("reports missing settings without logging secret values", () => {
     const environment = {
       ...validEnvironment,
-      MODEL_NAME: undefined,
+      DEFAULT_EXECUTOR: undefined,
       INTERNAL_SERVICE_CREDENTIALS: "private-token",
     };
-    expect(() => loadConfig(environment)).toThrow(/MODEL_NAME/);
+    expect(() => loadConfig(environment)).toThrow(/DEFAULT_EXECUTOR/);
     expect(() => loadConfig(environment)).toThrow(/INTERNAL_SERVICE_CREDENTIALS/);
     expect(() => loadConfig(environment)).not.toThrow(/private-token/);
   });
@@ -49,5 +47,22 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...validEnvironment, INTERNAL_PORT: "4310" })).toThrow(
       /must differ from PUBLIC_PORT/
     );
+  });
+});
+
+describe("loadClassifierConfig", () => {
+  test("requires both provider keys and defaults the model IDs", () => {
+    const config = loadClassifierConfig({ TYPESAFE_API_KEY: "ts-key", OPENAI_API_KEY: "oa-key" });
+    expect(config.JEV_MODEL).toBe("jev-latest");
+    expect(config.LUNA_MODEL).toBe("gpt-6-luna");
+  });
+
+  test("reports missing keys without other settings", () => {
+    expect(() => loadClassifierConfig({ OPENAI_API_KEY: "oa-key" })).toThrow(/TYPESAFE_API_KEY/);
+    expect(() => loadClassifierConfig({ TYPESAFE_API_KEY: "ts-key" })).toThrow(/OPENAI_API_KEY/);
+  });
+
+  test("does not require provider keys for the listener configuration", () => {
+    expect(loadConfig(validEnvironment)).not.toHaveProperty("OPENAI_API_KEY");
   });
 });
