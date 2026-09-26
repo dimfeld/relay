@@ -167,16 +167,16 @@ Objective: Allow trusted applications to publish structured events and inspect H
 ## Phase 10 — Project Registry
 Objective: Constrain one-off coding work to approved repositories.
 ### Tasks
-- ☐ Implement project configuration/storage with id, name, aliases, directory, default branch, allowed agents, and optional project instructions.
-- ☐ Resolve natural-language project names through registered aliases.
-- ☐ Reject unregistered project paths.
-- ☐ Validate configured project directories at startup or registration time.
-- ☐ Expose read-only project listing/detail in the admin UI/API.
-- ☐ Add per-project policy flags for agent push, merge, and deploy.
+- ☑ Implement project configuration/storage with id, name, aliases, directory, default branch, allowed agents, and optional project instructions.
+- ☑ Resolve natural-language project names through registered aliases.
+- ☑ Reject unregistered project paths.
+- ☑ Validate configured project directories at startup or registration time.
+- ☑ Expose read-only project listing/detail in the admin UI/API.
+- ☑ Add per-project policy flags for agent push, merge, and deploy.
 ### Done when
-- ☐ ‘Omni’ reliably resolves to the configured OmniApp repository.
-- ☐ A model-provided arbitrary path is ignored/rejected.
-- ☐ Project policies are available before any execution starts.
+- ☑ ‘Omni’ reliably resolves to the configured OmniApp repository.
+- ☑ A model-provided arbitrary path is ignored/rejected.
+- ☑ Project policies are available before any execution starts.
 ## Phase 11 — Codex and Claude Executors
 Objective: Run one-off coding tasks safely without requiring Tim.
 ### Tasks

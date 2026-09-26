@@ -66,6 +66,7 @@ const schema = z
     PEBBLE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
     INTERNAL_SERVICE_CREDENTIALS: credentials,
     INTERNAL_API_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
+    PROJECTS_CONFIG_PATH: nonEmpty.optional(),
     DELIVERY_MAX_ATTEMPTS: z.coerce
       .number()
       .int()

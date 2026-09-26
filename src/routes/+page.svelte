@@ -5,4 +5,5 @@
 <main>
   <h1>Relay</h1>
   <p>The internal service is ready.</p>
+  <p><a href="/projects">View registered projects</a></p>
 </main>
