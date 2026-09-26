@@ -65,6 +65,16 @@ export interface DeliveryRetryJobPayload {
   deliveryId: string;
 }
 
+/** A structured event from the internal API skips classification and routes by its own type. */
+export const ROUTE_EVENT_JOB_TYPE = "event.route";
+
+/** The delivery row owns retries after routing, the same as a delivery retry job. */
+export const ROUTE_EVENT_JOB_MAX_ATTEMPTS = DELIVERY_RETRY_JOB_MAX_ATTEMPTS;
+
+export interface RouteEventJobPayload {
+  eventId: string;
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -272,6 +282,22 @@ export function createDeliveryRetryHandler(
 ): QueueHandler<DeliveryRetryJobPayload> {
   return async (job: Job<DeliveryRetryJobPayload>) => {
     await routing.runScheduledDelivery(job.payload.deliveryId);
+  };
+}
+
+/** Create the "delivery" queue handler for structured-event routing and delivery retries. */
+export function createDeliveryQueueHandler(
+  db: Database,
+  routing: RoutingService
+): QueueHandler<DeliveryRetryJobPayload | RouteEventJobPayload> {
+  const retry = createDeliveryRetryHandler(routing);
+  return async (job) => {
+    if (job.type !== ROUTE_EVENT_JOB_TYPE) return retry(job as Job<DeliveryRetryJobPayload>);
+
+    const { eventId } = job.payload as RouteEventJobPayload;
+    const event = getEvent(db, eventId);
+    if (!event) throw new Error(`Event ${eventId} does not exist.`);
+    await routing.routeEvent(event);
   };
 }
 

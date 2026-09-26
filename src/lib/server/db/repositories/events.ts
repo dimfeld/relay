@@ -84,3 +84,11 @@ export function findEventBySource(
     .get(source, sourceEventId);
   return row ? mapEvent(row) : null;
 }
+
+/** Newest first. Without a limit, return every row; SQLite reads a negative LIMIT as no limit. */
+export function listRecentEvents(db: Database, limit?: number): IncomingEvent[] {
+  return db
+    .query<EventRow, [number]>("SELECT * FROM incoming_events ORDER BY received_at DESC LIMIT ?")
+    .all(limit ?? -1)
+    .map(mapEvent);
+}

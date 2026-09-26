@@ -85,6 +85,16 @@ export function listAttemptsForEvent(db: Database, eventId: string): ProcessingA
     .map(mapAttempt);
 }
 
+/** Newest first. Without a limit, return every row; SQLite reads a negative LIMIT as no limit. */
+export function listRecentAttempts(db: Database, limit?: number): ProcessingAttempt[] {
+  return db
+    .query<AttemptRow, [number]>(
+      "SELECT * FROM processing_attempts ORDER BY started_at DESC LIMIT ?"
+    )
+    .all(limit ?? -1)
+    .map(mapAttempt);
+}
+
 export function updateAttempt(
   db: Database,
   id: string,

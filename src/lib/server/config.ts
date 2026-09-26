@@ -11,18 +11,40 @@ export const DEFAULT_CONTEXT_MAX_AGE_MINUTES = 15;
  */
 export const DEFAULT_DELIVERY_MAX_ATTEMPTS = 10;
 
+export const SERVICE_CAPABILITIES = [
+  "events:publish",
+  "coding:request",
+  "deploy:request",
+  "admin:read",
+] as const;
+
+export type ServiceCapability = (typeof SERVICE_CAPABILITIES)[number];
+
+const serviceCredential = z.object({
+  token: nonEmpty,
+  capabilities: z.array(z.enum(SERVICE_CAPABILITIES)),
+});
+
 const credentials = z.string().transform((value, context) => {
   try {
     const parsed = JSON.parse(value);
     const result = z
-      .record(nonEmpty, nonEmpty)
+      .record(nonEmpty, serviceCredential)
       .refine((entries) => Object.keys(entries).length > 0)
       .safeParse(parsed);
-    if (result.success) return result.data;
+    if (result.success) {
+      const tokens = Object.values(result.data).map((credential) => credential.token);
+      if (new Set(tokens).size === tokens.length) return result.data;
+      context.addIssue({ code: "custom", message: "each service must have a distinct token" });
+      return z.NEVER;
+    }
   } catch {
     // Report the same error for malformed JSON and invalid credentials.
   }
-  context.addIssue({ code: "custom", message: "must be a JSON object of service names to tokens" });
+  context.addIssue({
+    code: "custom",
+    message: `must be a JSON object of service names to { token, capabilities }, with capabilities from: ${SERVICE_CAPABILITIES.join(", ")}`,
+  });
   return z.NEVER;
 });
 
@@ -43,6 +65,7 @@ const schema = z
     PEBBLE_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
     PEBBLE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
     INTERNAL_SERVICE_CREDENTIALS: credentials,
+    INTERNAL_API_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
     DELIVERY_MAX_ATTEMPTS: z.coerce
       .number()
       .int()

@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { openDatabase } from "./lib/server/db";
 import { ingestPebbleWebhook } from "./lib/server/events/pebble";
+import { readBodyWithinLimit } from "./lib/server/request";
 import { loadConfig, type AppConfig } from "./lib/server/config";
 import { log } from "./lib/server/logging";
 
@@ -28,37 +29,6 @@ function hasValidBearerToken(authorization: string | null, secrets: string[]): b
     }
   }
   return valid;
-}
-
-async function readBodyWithinLimit(request: Request, maxBytes: number): Promise<Uint8Array | null> {
-  const reader = request.body?.getReader();
-  if (!reader) return new Uint8Array();
-
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      size += value.byteLength;
-      if (size > maxBytes) {
-        await reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-
-    const body = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return body;
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 export function createPublicServer(config: AppConfig, db: Database, port = config.PUBLIC_PORT) {

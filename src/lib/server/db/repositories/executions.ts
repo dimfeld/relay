@@ -168,6 +168,14 @@ export function listExecutionsForProject(db: Database, projectId: string): Execu
     .map(mapExecution);
 }
 
+/** Newest first. Without a limit, return every row; SQLite reads a negative LIMIT as no limit. */
+export function listRecentExecutions(db: Database, limit?: number): Execution[] {
+  return db
+    .query<ExecutionRow, [number]>("SELECT * FROM executions ORDER BY created_at DESC LIMIT ?")
+    .all(limit ?? -1)
+    .map(mapExecution);
+}
+
 export function updateExecution(
   db: Database,
   id: string,
