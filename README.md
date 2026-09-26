@@ -31,6 +31,8 @@ Each caller sends `Authorization: Bearer <token>`. `INTERNAL_SERVICE_CREDENTIALS
 
 A published event has the envelope `{ "source", "type", "payload", "sourceEventId"? }`. Relay deduplicates by source with `sourceEventId`, or with the `Idempotency-Key` header when there is no `sourceEventId`. A new event returns 202 with `{ eventId }`. A duplicate returns 200 with `{ eventId, duplicate: true }`. Relay routes a published event by its type to the owner integration, without classification.
 
+The internal SvelteKit app includes an Activity page at `/activity`. It lists incoming events newest first with their source, received time, input summary, latest classification, delivery destination, and status. Filters are available for source, status, action type, and date. Failed, unrouted, and needs-review events are highlighted.
+
 ## Registered projects
 
 Set `PROJECTS_CONFIG_PATH` to a JSON file to register approved project directories. Relay reads and validates this file when the internal server starts, then syncs the project catalog to SQLite. Each directory must be an existing absolute path. Project IDs, names, and aliases must identify one project without collisions. The file shape is:
