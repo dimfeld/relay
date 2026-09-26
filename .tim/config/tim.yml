@@ -5,6 +5,8 @@ quality: hobby
 developmentWorkflow: squash-rebase
 generate:
   queueWhenDone: true
+  model:
+    codex: gpt-6-sol:high
 lifecycle:
   commands:
     - title: Install dependencies
