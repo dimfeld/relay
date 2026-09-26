@@ -21,6 +21,12 @@ This document records work outside the Relay repository. The Relay tim plans cov
 - If OmniApp publishes structured events to Relay, use its own service token and `source: "omniapp"`. Relay gives the OmniApp identity `events:publish`.
 - Define the exact request and response fields with Relay before a live integration test. The Relay plans can use local fake OmniApp endpoints until this contract is available.
 
+## Tim
+
+- Install the Tim CLI where Relay runs and configure the registered project directories for `tim add`.
+- Configure Tim's queue to process plans with `simple: true` and `status: queued`. Relay creates and queues the plan; Tim owns generation and execution.
+- Normal plan creation uses Tim defaults and does not request immediate execution.
+
 ## Integration proof
 
 Relay's automated acceptance suite should use local fake services for these contracts. A later live test needs the Mail and OmniApp changes above and access to those applications. Do not mark a live cross-app flow complete from a fake-service result.

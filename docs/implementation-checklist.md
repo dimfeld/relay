@@ -1,7 +1,7 @@
 # Relay — Implementation Checklist
 Purpose: Implementation plan for event capture, classification, routing, and delivery.
 
-Agent coding is outside Relay scope. Phase numbers are retained so existing tim plan references remain valid.
+Direct agent coding is outside Relay scope. Tim owns execution of plans that Relay creates and queues. Phase numbers are retained so existing tim plan references remain valid.
 ## 0. Global Implementation Constraints
 - ☐ Use Bun, SvelteKit, TypeScript, and SQLite. oxfmt and oxlint as well.
 - ☐ Keep the public webhook listener and internal/admin listener separate.
@@ -86,7 +86,7 @@ Objective: Provide a small durable queue using SQLite.
 Objective: Turn normalized voice captures into explicit typed actions.
 Follow [Model Pipeline](model-pipeline.md) for provider roles and the required failure states.
 ### Tasks
-- ☐ Define Zod schemas for task.create, reminder.create, note.create, note.append, command.execute, and unknown.
+- ☐ Define Zod schemas for task.create, reminder.create, note.create, note.append, tim.plan.create, tim.plan.create_and_execute, command.execute, and unknown.
 - ☐ Define separate Jev classification and Luna extraction interfaces so workers do not depend on either SDK.
 - ☐ Add the official TypeSafe AI SDK and use Jev `choice` to select only an action type.
 - ☐ Add `ai` and `@ai-sdk/openai`; use GPT-6 Luna with `Output.object({ schema })` to extract fields for the selected action type.
@@ -173,6 +173,21 @@ Objective: Provide project metadata for reference and routing.
 ### Done when
 - ☑ “Omni” resolves to the configured OmniApp project.
 - ☑ Registered project metadata is available through the internal UI/API.
+## Phase 10A — Tim Plan Actions
+Objective: Create a plan in a registered project, with an optional request for immediate Tim execution.
+### Tasks
+- ☐ Add distinct `tim.plan.create` and `tim.plan.create_and_execute` action schemas with project and description fields.
+- ☐ Resolve the project through the catalog and use its configured directory as the process working directory.
+- ☐ Run `tim add <description> --details <description>` through a Tim adapter with an argument array and no shell.
+- ☐ For `tim.plan.create_and_execute`, also pass `--simple --status queued`. Normal creation keeps Tim defaults.
+- ☐ Record the created Tim plan ID, project, queue mode, and command outcome in action history and event detail.
+- ☐ Validate and authorize these actions before dispatch. Models must not supply paths, executables, or CLI flags.
+- ☐ Use durable dispatch; prevent duplicate plan creation on repeated input or retries after recorded success. Reconcile uncertain creation before another add.
+- ☐ Document the Tim CLI and queue setup. Tim owns generation and execution after queueing.
+### Done when
+- ☐ Tests prove both action types use the registered project directory and preserve the description.
+- ☐ Normal creation leaves simple and status at Tim defaults; immediate execution creates a simple plan with status queued.
+- ☐ Invalid requests, denied publishing, process failure, duplicate input, and uncertain completion have recorded outcomes without unintended plan creation.
 ## Phase 14 — Admin UI: Activity
 Objective: Create an operational console rather than another productivity inbox.
 ### Tasks
@@ -249,11 +264,12 @@ Objective: Prove the complete system before considering the MVP complete.
 - ☐ Add fixture for note capture → configured note owner.
 - ☐ Add fixture for note continuation using recent context.
 - ☐ Add fixture for Mail package.detected → OmniApp delivery.
+- ☐ Add fixtures for project plan creation and simple queued plan creation.
 - ☐ Add fixture for classifier failure → needs_review.
 - ☐ Add fixture for destination outage → retry → eventual success.
 - ☐ Add fixture for duplicate source webhook.
 - ☐ Add authorization tests across public/internal boundaries.
-- ☐ Verify that unsupported coding commands cannot cause a side effect.
+- ☐ Verify that unsupported direct coding commands cannot cause a side effect.
 ### Done when
 - ☐ All acceptance fixtures pass.
 - ☐ Fresh install plus documented configuration can reproduce the environment.
@@ -267,6 +283,7 @@ Objective: Prove the complete system before considering the MVP complete.
 1. feat: add integration routing and durable delivery
 1. feat: add internal service API and auth
 1. feat: add project catalog
+1. feat: add Tim plan creation and queued execution actions
 1. feat: add admin activity and event detail UI
 1. feat: add failure UI
 1. feat: add correction and retry workflows
@@ -277,6 +294,7 @@ Objective: Prove the complete system before considering the MVP complete.
 - ☐ The Hub classifies task, reminder, note, continuation, command, and unknown with schema validation.
 - ☐ Tasks/reminders are delivered to Mail, not managed in the Hub.
 - ☐ Structured cross-app events can route to OmniApp.
+- ☐ Relay can create a Tim plan in a registered project and can request execution by setting simple and status queued.
 - ☐ Every important pipeline stage is inspectable from the admin UI.
 - ☐ Failures are retried or surfaced; no input disappears silently.
 - ☐ Public and internal network surfaces are isolated.

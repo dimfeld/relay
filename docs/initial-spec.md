@@ -73,7 +73,7 @@ Relay should treat note ownership as a route, not as a hard-coded architectural 
 - Record processing stages, deliveries, failures, and corrections.
 - Provide an administrative web UI for inspection and correction.
 ## 7. Non-Goals
-- Running coding agents or changing repositories, branches, merges, or deployments.
+- Directly running coding agents or changing repositories, branches, merges, or deployments.
 - Being a daily task, reminder, notes, or package-management UI.
 - Replacing Mail, OmniApp, or Tim as domain owners.
 - Becoming a general message broker such as Kafka or NATS.
@@ -107,6 +107,8 @@ type CapturedIntent =
   | { type: "reminder.create"; text: string; remindAt: string; originalTimePhrase?: string }
   | { type: "note.create"; title?: string; body: string; topic?: string }
   | { type: "note.append"; targetId: string; body: string }
+  | { type: "tim.plan.create"; project: string; description: string }
+  | { type: "tim.plan.create_and_execute"; project: string; description: string }
   | { type: "command.execute"; command: ParsedCommand }
   | { type: "unknown"; reason?: string }
 ```
@@ -129,7 +131,18 @@ interface ParsedCommand {
 ```
 ## 13. Project Catalog
 
-Relay keeps a read-only catalog of registered projects for reference and routing. Each project has an ID, name, aliases, directory, and optional instructions. Resolve project names through registered aliases and validate configured directories. A catalog entry does not authorize coding execution or repository changes.
+Relay keeps a read-only catalog of registered projects for reference and routing. Each project has an ID, name, aliases, directory, and optional instructions. Resolve project names through registered aliases and validate configured directories. A catalog entry supplies the directory for Tim plan actions. Relay does not run coding agents or change repository files.
+
+## 14. Tim Plan Actions
+
+- `tim.plan.create`: Create a plan in a registered project.
+- `tim.plan.create_and_execute`: Create a simple plan in a registered project and queue it for Tim execution.
+
+Both actions require a project name or alias and a non-empty description. Resolve the project through the catalog and run `tim add <description> --details <description>` with that project directory as the working directory. For the second action, also pass `--simple --status queued`. For normal creation, retain Tim defaults. Use a fixed executable and an argument array without a shell. Treat the description as data, including text that resembles CLI options.
+
+Record the returned plan ID, project, queue mode, and command outcome. Keep dispatch durable and avoid creating another plan on duplicate input or a retry after recorded success. If command completion is uncertain, reconcile the result before another creation attempt. Missing or unknown projects and invalid descriptions require review before dispatch.
+
+Tim owns the plan and its execution. Setting simple and status queued is the complete Relay request for immediate execution; Tim's queue must be configured to process it. Relay does not start `tim agent`.
 
 ## 16. Internal Integration API
 ```text
@@ -151,6 +164,8 @@ Use namespaced event types such as:
 - note.create
 - note.append
 - package.detected
+- tim.plan.create
+- tim.plan.create_and_execute
 ## 17. Durable Delivery and Idempotency
 - Persist every outgoing delivery before attempting it.
 - Use retry with exponential backoff.
@@ -264,6 +279,7 @@ workers/
 - Generic internal event publishing API
 - Durable delivery queue with retry/idempotency
 - Registered project catalog
+- Tim plan creation and simple queued plan creation
 - Admin activity/event-detail UI
 - Failure/retry/reclassify controls
 - Separate public and internal HTTP exposure

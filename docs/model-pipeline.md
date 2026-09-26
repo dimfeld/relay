@@ -6,7 +6,7 @@ This document defines how Relay uses models for incoming events. Keep each call 
 
 1. Persist the original input and normalize its text before a model call.
 2. Apply exact signals, such as a wake name, in TypeScript.
-3. Use TypeSafe AI Jev to select one action type: `task.create`, `reminder.create`, `note.create`, `note.append`, `command.execute`, or `unknown`. Send the normalized text and selected recent context as Jev state. Use Jev's `choice` question with explicit options. Map the selected option to the action type in TypeScript.
+3. Use TypeSafe AI Jev to select one action type: `task.create`, `reminder.create`, `note.create`, `note.append`, `tim.plan.create`, `tim.plan.create_and_execute`, `command.execute`, or `unknown`. Send the normalized text and selected recent context as Jev state. Use Jev's `choice` question with explicit options. Map the selected option to the action type in TypeScript.
 4. If Jev selects `unknown`, record the result without an extraction call. Use `unknown` only when the capture has no usable content to classify, such as silence or unintelligible speech. When the speaker's intent is unclear but the capture has content, classify it as `note.create`. For other types, use GPT-6 Luna through the Vercel AI SDK to extract only the fields for the selected type. Luna must not change Jev's selected type.
 5. Validate the extracted fields with that type's Zod schema. Resolve references, routes, and permissions in TypeScript before any side effect.
 
@@ -24,7 +24,8 @@ Extend the Phase 1 configuration loader when this pipeline is implemented. Requi
 - Give Luna the normalized text, only the selected context, the fixed action type, and the field schema. Keep the original text in the event record.
 - Extract reminder time, time zone, and original time phrase when the action needs them. If a required time cannot be resolved, record `needs_review`.
 - Resolve `note.append` targets from recorded context and known downstream IDs. If the target is unclear, record `needs_review` or create a new note only when the input supports that action.
-- Reject commands that request coding execution, repository changes, merges, or deployments. Relay has no executor for these requests.
+- For Tim plan actions, extract a project name or alias and the full plan description. Keep create-only and create-and-execute as distinct labels; only the latter requests simple queued creation. Resolve the project directory from the catalog in TypeScript.
+- Reject commands that request direct coding execution, repository changes, merges, or deployments. Tim plan creation and queueing use the fixed adapter described in the specification.
 - Treat Jev's typed output as a valid label, not proof that the label is correct. Record its available probabilities and confidence for inspection. Use explicit policy and validation to decide whether dispatch is safe; do not infer a confidence threshold from the model response.
 
 If Jev fails, keep the event and record the failed attempt for retry or review. If Luna returns no valid object, retry once with a repair request or mark `needs_review`. If the repair fails, mark `needs_review`. Each retry and reclassification creates a new processing attempt. No model failure may discard the original input or start a side effect.
@@ -37,4 +38,4 @@ Use GPT-6 Luna through the Vercel AI SDK for other in-process language tasks tha
 
 ## Tests for the classification phase
 
-Use fake Jev and Luna adapters in unit tests. Cover every action label, valid field extraction, invalid fields, unavailable providers, a mismatched Luna action type, uncertain note targets, and an unsupported coding command. Test that no invalid result reaches dispatch. Keep a separate opt-in integration check for the real providers when credentials are available.
+Use fake Jev and Luna adapters in unit tests. Cover every action label, valid field extraction, invalid fields, unavailable providers, a mismatched Luna action type, uncertain note targets, both Tim plan actions, invalid project references, and an unsupported direct coding command. Test that no invalid result reaches dispatch. Keep a separate opt-in integration check for the real providers when credentials are available.
