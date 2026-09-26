@@ -16,6 +16,7 @@ export const SERVICE_CAPABILITIES = [
   "coding:request",
   "deploy:request",
   "admin:read",
+  "admin:retry",
 ] as const;
 
 export type ServiceCapability = (typeof SERVICE_CAPABILITIES)[number];

@@ -162,6 +162,22 @@ export function failJob<TPayload = unknown>(
   return row ? mapJob<TPayload>(row) : null;
 }
 
+/** Put a failed or dead job back in its queue with a new attempt budget. Keep its last error. */
+export function requeueJob<TPayload = unknown>(
+  db: Database,
+  id: string,
+  at = nowIso()
+): Job<TPayload> | null {
+  const row = db
+    .query<JobRow, [string, string, string]>(
+      `UPDATE jobs SET status = 'pending', attempts = 0, available_at = ?, updated_at = ?
+       WHERE id = ? AND status IN ('failed', 'dead')
+       RETURNING *`
+    )
+    .get(at, at, id);
+  return row ? mapJob<TPayload>(row) : null;
+}
+
 export function recoverStaleJobs(
   db: Database,
   staleBefore: string,

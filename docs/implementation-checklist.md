@@ -187,10 +187,10 @@ Objective: Create an operational console rather than another productivity inbox.
 ## Phase 15 — Admin UI: Failures
 Objective: Inspect classification failures and failed integration deliveries.
 ### Tasks
-- ☐ Build Failures/dead-letter page for classification and delivery failures.
-- ☐ Add manual retry controls with authorization.
+- ☑ Build Failures/dead-letter page for classification and delivery failures.
+- ☑ Add manual retry controls with authorization.
 ### Done when
-- ☐ Failed classification or delivery can be retried from the Hub.
+- ☑ Failed classification or delivery can be retried from the Hub.
 ## Phase 16 — Reclassification and Corrections
 Objective: Allow the system to improve operationally without destroying historical evidence.
 ### Tasks

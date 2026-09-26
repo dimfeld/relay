@@ -1,4 +1,11 @@
-import { APIError, choice, noul, RateLimitError, TypeSafeClient, TypeSafeError } from "@typesafe-ai/sdk";
+import {
+  APIError,
+  choice,
+  noul,
+  RateLimitError,
+  TypeSafeClient,
+  TypeSafeError,
+} from "@typesafe-ai/sdk";
 import type {
   ChoiceQuestion as TypeSafeChoiceQuestion,
   NoulQuestion as TypeSafeNoulQuestion,

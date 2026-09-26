@@ -75,6 +75,22 @@ export interface RouteEventJobPayload {
   eventId: string;
 }
 
+/** Queue one attempt of a delivery that has status "failed" and is due at availableAt. */
+export function enqueueDeliveryRetry(
+  db: Database,
+  delivery: Pick<Delivery, "id" | "eventId">,
+  availableAt: string
+): Job<DeliveryRetryJobPayload> {
+  return enqueueJob<DeliveryRetryJobPayload>(db, {
+    type: "delivery.retry",
+    queue: "delivery",
+    payload: { deliveryId: delivery.id },
+    eventId: delivery.eventId,
+    maxAttempts: DELIVERY_RETRY_JOB_MAX_ATTEMPTS,
+    availableAt,
+  });
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -161,14 +177,7 @@ export function createRoutingService({
         lastError: message,
       });
       if (retry) {
-        enqueueJob<DeliveryRetryJobPayload>(db, {
-          type: "delivery.retry",
-          queue: "delivery",
-          payload: { deliveryId: delivery.id },
-          eventId: delivery.eventId,
-          maxAttempts: DELIVERY_RETRY_JOB_MAX_ATTEMPTS,
-          availableAt: nextAttemptAt!,
-        });
+        enqueueDeliveryRetry(db, delivery, nextAttemptAt!);
         return { status, delivery: loadDelivery(delivery.id)!, actionResult: null };
       }
       const actionResult = createActionResult(db, {

@@ -7,4 +7,5 @@
   <p>The internal service is ready.</p>
   <p><a href="/projects">View registered projects</a></p>
   <p><a href="/activity">View Activity</a></p>
+  <p><a href="/failures">View Failures</a></p>
 </main>

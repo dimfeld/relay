@@ -12,6 +12,7 @@ import {
   listExecutionLogs,
   listRecentExecutions,
 } from "../db/repositories/executions";
+import { listFailures, RetryError } from "../failures";
 import {
   getProjectCatalogEntry,
   listProjectCatalog,
@@ -39,6 +40,23 @@ export function handleAdminRead(
 
   const data = load(context.db, limit);
   return data === null ? errorResponse(404, "Not found") : Response.json(data);
+}
+
+/** Handle an admin POST request that retries a failed item and needs the admin:retry capability. */
+export function handleAdminRetry(
+  context: ServerContext,
+  request: Request,
+  retry: (db: Database) => unknown
+): Response {
+  const identity = authorize(context, request, "admin:retry");
+  if (identity instanceof Response) return identity;
+
+  try {
+    return Response.json(retry(context.db), { status: 202 });
+  } catch (error) {
+    if (error instanceof RetryError) return errorResponse(error.status, error.message);
+    throw error;
+  }
 }
 
 export const loadEvents: AdminLoader = (db, limit) => ({ events: listRecentEvents(db, limit) });
@@ -91,3 +109,5 @@ export function loadProject(id: string): AdminLoader<{ project: ProjectCatalogEn
     return project && { project };
   };
 }
+
+export const loadFailures: AdminLoader = (db) => listFailures(db);

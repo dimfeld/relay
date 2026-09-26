@@ -42,7 +42,7 @@
   <header class="page-header">
     <a class="back-link" href="/">Relay</a>
     <h1>Activity</h1>
-    <p>Incoming events, classifications, and delivery status.</p>
+    <p>Incoming events, classifications, and delivery status. <a href="/failures">View failures</a></p>
   </header>
 
   <section aria-label="Activity filters" class="filters">
