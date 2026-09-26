@@ -4,7 +4,10 @@ import { openDatabase } from "./lib/server/db";
 import { ingestPebbleWebhook } from "./lib/server/events/pebble";
 import { readBodyWithinLimit } from "./lib/server/request";
 import { loadConfig, type AppConfig } from "./lib/server/config";
-import { log } from "./lib/server/logging";
+import { log as defaultLog } from "./lib/server/logging";
+import type { OperationalMetrics } from "./lib/server/logging/metrics";
+import { operationalMetrics } from "./lib/server/logging/metrics";
+import { startRetentionPruner } from "./lib/server/db/retention";
 
 const WEBHOOK_PATH = "/webhooks/pebble";
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -31,7 +34,13 @@ function hasValidBearerToken(authorization: string | null, secrets: string[]): b
   return valid;
 }
 
-export function createPublicServer(config: AppConfig, db: Database, port = config.PUBLIC_PORT) {
+export function createPublicServer(
+  config: AppConfig,
+  db: Database,
+  port = config.PUBLIC_PORT,
+  log: typeof defaultLog = defaultLog,
+  metrics: OperationalMetrics = operationalMetrics
+) {
   let windowStart = 0;
   let requestsInWindow = 0;
 
@@ -74,7 +83,9 @@ export function createPublicServer(config: AppConfig, db: Database, port = confi
                   db,
                   request.headers.get("content-type"),
                   body,
-                  correlationId
+                  correlationId,
+                  log,
+                  metrics
                 );
                 eventId = result.eventId;
                 if (result.status === 400) {
@@ -92,6 +103,7 @@ export function createPublicServer(config: AppConfig, db: Database, port = confi
         return response;
       } finally {
         log(response ? "info" : "error", "public request", {
+          stage: "webhook",
           correlationId,
           method: request.method,
           path: url.pathname,
@@ -106,6 +118,10 @@ export function createPublicServer(config: AppConfig, db: Database, port = confi
 if (import.meta.main) {
   const config = loadConfig();
   const db = openDatabase(config.DATABASE_PATH);
+  startRetentionPruner(db, {
+    retentionDays: config.EVENT_RETENTION_DAYS,
+    intervalMs: config.RETENTION_CHECK_INTERVAL_MS,
+  });
   const server = createPublicServer(config, db);
-  log("info", "public listener started", { port: server.port });
+  defaultLog("info", "public listener started", { port: server.port });
 }

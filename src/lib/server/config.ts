@@ -6,6 +6,8 @@ const nonEmpty = z.string().trim().min(1);
 export const CLASSIFICATION_JOB_MAX_ATTEMPTS = 5;
 export const DEFAULT_CONTEXT_LIMIT = 10;
 export const DEFAULT_CONTEXT_MAX_AGE_MINUTES = 15;
+export const DEFAULT_EVENT_RETENTION_DAYS = 90;
+export const DEFAULT_RETENTION_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 /**
  * With the queue backoff (5 s doubling to a 15 min cap), ten attempts cover an owner outage of
  * about 36 minutes before a delivery becomes dead and needs a manual retry.
@@ -74,6 +76,12 @@ const schema = z
       .int()
       .positive()
       .default(DEFAULT_DELIVERY_MAX_ATTEMPTS),
+    EVENT_RETENTION_DAYS: z.coerce.number().int().positive().default(DEFAULT_EVENT_RETENTION_DAYS),
+    RETENTION_CHECK_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_RETENTION_CHECK_INTERVAL_MS),
     WAKE_NAME: nonEmpty.optional(),
     DEFAULT_EXECUTOR: z.enum(["codex", "claude"]),
     CODEX_EXECUTABLE: nonEmpty,

@@ -217,16 +217,16 @@ Objective: Ensure reminders are scheduled and surfaced by Mail rather than by Re
 ## Phase 18 — Observability and Operational Hardening
 Objective: Make failures diagnosable in a long-running personal service.
 ### Tasks
-- ☐ Add correlation IDs across webhook, classification, routing, and delivery.
-- ☐ Use structured logs everywhere.
-- ☐ Add counters/timings for incoming events, classifier latency/failure, and delivery retry counts.
-- ☐ Optionally add OpenTelemetry instrumentation behind configuration.
-- ☐ Add database backup guidance or an automated periodic SQLite backup mechanism appropriate for the deployment.
-- ☐ Add application log retention.
+- ☑ Add correlation IDs across webhook, classification, routing, and delivery.
+- ☑ Use structured logs everywhere.
+- ☑ Add counters/timings for incoming events, classifier latency/failure, and delivery retry counts.
+- ☐ Optionally add OpenTelemetry instrumentation behind configuration. (Not added.)
+- ☑ Add database backup guidance or an automated periodic SQLite backup mechanism appropriate for the deployment.
+- ☑ Add application log retention.
 ### Done when
-- ☐ A single correlation ID can trace an event across the pipeline.
-- ☐ Large logs cannot grow the database without bound.
-- ☐ Operational backup procedure is documented and tested.
+- ☑ A single correlation ID can trace an event across the pipeline.
+- ☑ Large logs cannot grow the database without bound.
+- ☑ Operational backup procedure is documented and tested.
 ## Phase 19 — Network Deployment
 Objective: Deploy with the intended security boundary using existing infrastructure.
 ### Tasks

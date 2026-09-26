@@ -4,7 +4,9 @@ import { nowIso } from "../db/json";
 import { createAttempt } from "../db/repositories/attempts";
 import { createEvent, findEventBySource } from "../db/repositories/events";
 import { enqueueJob } from "../db/repositories/jobs";
-import { log } from "../logging";
+import { log as defaultLog } from "../logging";
+import type { OperationalMetrics } from "../logging/metrics";
+import { operationalMetrics } from "../logging/metrics";
 
 interface PebbleCapture {
   client: string;
@@ -79,7 +81,9 @@ export async function ingestPebbleWebhook(
   db: Database,
   contentType: string | null,
   rawBody: Uint8Array,
-  correlationId: string
+  correlationId: string,
+  log: typeof defaultLog = defaultLog,
+  metrics: OperationalMetrics = operationalMetrics
 ): Promise<IngestResult> {
   const payload = {
     contentType,
@@ -134,8 +138,27 @@ export async function ingestPebbleWebhook(
     return { error: parsed.error, eventId: event.id, status: 400 as const };
   })();
 
+  if ("duplicate" in result && result.duplicate) {
+    log("info", "duplicate event received", {
+      stage: "ingest",
+      correlationId,
+      eventId: result.eventId,
+      source: "pebble",
+    });
+  } else {
+    metrics.recordIncomingEvent();
+    log("info", "event ingested", {
+      stage: "ingest",
+      correlationId,
+      eventId: result.eventId,
+      source: "pebble",
+      type: parsed.capture ? "pebble.transcription" : "pebble.malformed",
+    });
+  }
+
   if ("error" in result) {
     log("warn", "malformed Pebble webhook", {
+      stage: "ingest",
       correlationId,
       eventId: result.eventId,
       error: result.error,

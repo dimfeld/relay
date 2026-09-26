@@ -13,6 +13,9 @@ import type { RateLimitRetryOptions } from "./retry";
 import type { Action } from "./schemas";
 import { classifyCapture, type ClassificationRecord } from "./service";
 import type { ContextItem, JevClassifier, LunaExtractor } from "./types";
+import { correlationIdForEvent, log as defaultLog } from "../logging";
+import type { OperationalMetrics } from "../logging/metrics";
+import { operationalMetrics } from "../logging/metrics";
 
 export interface ClassificationJobPayload {
   eventId: string;
@@ -33,6 +36,8 @@ export interface ClassificationHandlerOptions {
   selectContext?: (db: Database, event: IncomingEvent) => ContextItem[];
   /** Called only with a validated action, after the classification is stored. */
   onClassified?: (action: Action, classification: Classification) => void | Promise<void>;
+  log?: typeof defaultLog;
+  metrics?: OperationalMetrics;
 }
 
 function referenceTime(event: IncomingEvent): string {
@@ -60,10 +65,21 @@ export function createClassificationHandler({
   contextMaxAgeMinutes = DEFAULT_CONTEXT_MAX_AGE_MINUTES,
   selectContext,
   onClassified,
+  log = defaultLog,
+  metrics = operationalMetrics,
 }: ClassificationHandlerOptions): QueueHandler<ClassificationJobPayload> {
   return async (job: Job<ClassificationJobPayload>) => {
     const event = getEvent(db, job.payload.eventId);
     if (!event) throw new Error(`Event ${job.payload.eventId} does not exist.`);
+    const correlationId = correlationIdForEvent(event);
+    const startedAt = performance.now();
+    log("info", "classification started", {
+      stage: "classification",
+      correlationId,
+      eventId: event.id,
+      jobId: job.id,
+      jobAttempt: job.attempts,
+    });
 
     const jobDetails = {
       jobId: job.id,
@@ -105,6 +121,16 @@ export function createClassificationHandler({
         ...jobDetails,
         selectedContextIds,
       });
+      const durationMs = performance.now() - startedAt;
+      metrics.recordClassification(durationMs, true);
+      log("error", "classification failed", {
+        stage: "classification",
+        correlationId,
+        eventId: event.id,
+        jobId: job.id,
+        durationMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
 
@@ -114,6 +140,16 @@ export function createClassificationHandler({
       // The job retries with a new attempt; after the last job attempt the event needs review.
       const finalAttempt = job.attempts >= job.maxAttempts;
       finishAttempt(finalAttempt ? NEEDS_REVIEW : "failed", result.error, details);
+      const durationMs = performance.now() - startedAt;
+      metrics.recordClassification(durationMs, true);
+      log("error", "classification failed", {
+        stage: "classification",
+        correlationId,
+        eventId: event.id,
+        jobId: job.id,
+        durationMs,
+        error: result.error,
+      });
       throw new Error(result.error);
     }
 
@@ -142,6 +178,18 @@ export function createClassificationHandler({
       );
       return created;
     })();
+
+    const durationMs = performance.now() - startedAt;
+    metrics.recordClassification(durationMs, false);
+    log("info", "classification completed", {
+      stage: "classification",
+      correlationId,
+      eventId: event.id,
+      jobId: job.id,
+      classificationId: classification.id,
+      status: result.status,
+      durationMs,
+    });
 
     if (result.status === "classified") await onClassified?.(result.action, classification);
   };

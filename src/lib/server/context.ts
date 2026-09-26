@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { loadConfig, type AppConfig } from "./config";
 import { openDatabase } from "./db";
+import { startRetentionPruner } from "./db/retention";
 import { loadProjectDefinitions } from "./projects/config";
 import { syncProjectCatalog } from "./projects/catalog";
 
@@ -20,6 +21,10 @@ export function getServerContext(): ServerContext {
       const definitions = loadProjectDefinitions(config.PROJECTS_CONFIG_PATH);
       if (definitions) syncProjectCatalog(db, definitions, config.DEFAULT_EXECUTOR);
       context = { config, db };
+      startRetentionPruner(db, {
+        retentionDays: config.EVENT_RETENTION_DAYS,
+        intervalMs: config.RETENTION_CHECK_INTERVAL_MS,
+      });
     } catch (error) {
       db.close();
       throw error;

@@ -19,6 +19,9 @@ import { DeliveryError } from "../integrations/http";
 import { createIntegrationRegistry, type IntegrationRegistry } from "../integrations/registry";
 import type { DeliveryEnvelope, OwnerDeliveryResult } from "../integrations/types";
 import { log as defaultLog } from "../logging";
+import { correlationIdForEvent } from "../logging";
+import type { OperationalMetrics } from "../logging/metrics";
+import { operationalMetrics } from "../logging/metrics";
 import { exponentialBackoff, type Backoff } from "../queue/backoff";
 import type { QueueHandler } from "../queue/worker";
 import { createDeliveryEnvelope } from "./envelope";
@@ -68,6 +71,7 @@ export interface RoutingServiceOptions {
   backoff?: Backoff;
   now?: () => Date;
   log?: typeof defaultLog;
+  metrics?: OperationalMetrics;
 }
 
 export interface DeliveryRetryJobPayload {
@@ -111,6 +115,7 @@ export function createRoutingService({
   backoff = exponentialBackoff,
   now = () => new Date(),
   log = defaultLog,
+  metrics = operationalMetrics,
 }: RoutingServiceOptions): RoutingService {
   function loadDelivery(id: string): RoutedDelivery | null {
     return getDelivery<DeliveryEnvelope, DeliveryResponse>(db, id);
@@ -128,9 +133,10 @@ export function createRoutingService({
   function recordSuccess(
     delivery: RoutedDelivery,
     attempts: number,
-    result: OwnerDeliveryResult
+    result: OwnerDeliveryResult,
+    durationMs: number
   ): DeliveryOutcome {
-    return db.transaction(() => {
+    const outcome = db.transaction(() => {
       updateDelivery(db, delivery.id, {
         status: "succeeded",
         attempts,
@@ -150,12 +156,24 @@ export function createRoutingService({
       });
       return { status: "succeeded" as const, delivery: loadDelivery(delivery.id)!, actionResult };
     })();
+    log("info", "delivery attempt completed", {
+      stage: "delivery",
+      correlationId: delivery.request.correlationId,
+      eventId: delivery.eventId,
+      deliveryId: delivery.id,
+      integrationId: delivery.integrationId,
+      attempts,
+      durationMs,
+      status: "succeeded",
+    });
+    return outcome;
   }
 
   function recordFailure(
     delivery: RoutedDelivery,
     attempts: number,
-    error: unknown
+    error: unknown,
+    durationMs: number
   ): DeliveryOutcome {
     const message = errorText(error);
     const deliveryError = error instanceof DeliveryError ? error : null;
@@ -164,20 +182,7 @@ export function createRoutingService({
       ? new Date(now().getTime() + backoff(attempts)).toISOString()
       : null;
     const status: DeliveryStatus = retry ? "failed" : "dead";
-
-    log(retry ? "warn" : "error", "delivery attempt failed", {
-      correlationId: delivery.request.correlationId,
-      eventId: delivery.eventId,
-      deliveryId: delivery.id,
-      integrationId: delivery.integrationId,
-      attempts,
-      status,
-      httpStatus: deliveryError?.response?.status ?? null,
-      nextAttemptAt,
-      error: message,
-    });
-
-    return db.transaction(() => {
+    const outcome = db.transaction(() => {
       updateDelivery(db, delivery.id, {
         status,
         attempts,
@@ -198,12 +203,38 @@ export function createRoutingService({
       });
       return { status, delivery: loadDelivery(delivery.id)!, actionResult };
     })();
+    const retryCount = retry ? metrics.recordDeliveryRetry() : undefined;
+    log(retry ? "warn" : "error", "delivery attempt failed", {
+      stage: "delivery",
+      correlationId: delivery.request.correlationId,
+      eventId: delivery.eventId,
+      deliveryId: delivery.id,
+      integrationId: delivery.integrationId,
+      attempts,
+      durationMs,
+      status,
+      retryScheduled: retry,
+      retryCount,
+      httpStatus: deliveryError?.response?.status ?? null,
+      nextAttemptAt,
+      error: message,
+    });
+    return outcome;
   }
 
   /** Send a delivery that is already persisted as pending, and record the outcome. */
   async function attempt(delivery: RoutedDelivery): Promise<DeliveryOutcome> {
     const envelope = delivery.request;
     const attempts = delivery.attempts + 1;
+    const startedAt = performance.now();
+    log("info", "delivery attempt started", {
+      stage: "delivery",
+      correlationId: envelope.correlationId,
+      eventId: delivery.eventId,
+      deliveryId: delivery.id,
+      integrationId: delivery.integrationId,
+      attempts,
+    });
     let result: OwnerDeliveryResult;
     try {
       const integration = getIntegration(db, delivery.integrationId);
@@ -219,9 +250,9 @@ export function createRoutingService({
       }
       result = await adapter.deliver(integration, envelope);
     } catch (error) {
-      return recordFailure(delivery, attempts, error);
+      return recordFailure(delivery, attempts, error, performance.now() - startedAt);
     }
-    return recordSuccess(delivery, attempts, result);
+    return recordSuccess(delivery, attempts, result, performance.now() - startedAt);
   }
 
   async function deliver(
@@ -230,9 +261,24 @@ export function createRoutingService({
     payload: unknown,
     attemptId?: string
   ): Promise<RoutingOutcome> {
+    const correlationId = correlationIdForEvent(event);
+    log("info", "routing started", {
+      stage: "routing",
+      correlationId,
+      eventId: event.id,
+      eventType: event.type,
+      actionType,
+    });
     const resolved = resolveRoute(db, { eventType: event.type, actionType });
     if (!resolved) {
       const message = `No enabled route matched event ${event.type} and action ${actionType}.`;
+      log("warn", "event has no matching route", {
+        stage: "routing",
+        correlationId,
+        eventId: event.id,
+        eventType: event.type,
+        actionType,
+      });
       const actionResult = createActionResult(db, {
         eventId: event.id,
         actionType,
@@ -255,7 +301,16 @@ export function createRoutingService({
       envelope.idempotencyKey
     );
     // An existing delivery already has its own retry path, so routing it again does not resend.
-    if (existing) return { status: existing.status, delivery: existing, actionResult: null };
+    if (existing) {
+      log("info", "delivery already recorded", {
+        stage: "routing",
+        correlationId,
+        eventId: event.id,
+        deliveryId: existing.id,
+        status: existing.status,
+      });
+      return { status: existing.status, delivery: existing, actionResult: null };
+    }
 
     const delivery = createDelivery<DeliveryEnvelope, DeliveryResponse>(db, {
       eventId: event.id,

@@ -24,6 +24,8 @@ describe("loadConfig", () => {
     });
     expect(config.INTERNAL_API_MAX_BODY_BYTES).toBe(65_536);
     expect(config.DELIVERY_MAX_ATTEMPTS).toBe(10);
+    expect(config.EVENT_RETENTION_DAYS).toBe(90);
+    expect(config.RETENTION_CHECK_INTERVAL_MS).toBe(86_400_000);
   });
 
   test("rejects services that share a token", () => {
@@ -54,6 +56,16 @@ describe("loadConfig", () => {
     });
     expect(config.PEBBLE_MAX_BODY_BYTES).toBe(2048);
     expect(config.PEBBLE_RATE_LIMIT_PER_MINUTE).toBe(12);
+  });
+
+  test("accepts application history retention settings", () => {
+    const config = loadConfig({
+      ...validEnvironment,
+      EVENT_RETENTION_DAYS: "30",
+      RETENTION_CHECK_INTERVAL_MS: "60000",
+    });
+    expect(config.EVENT_RETENTION_DAYS).toBe(30);
+    expect(config.RETENTION_CHECK_INTERVAL_MS).toBe(60_000);
   });
 
   test("reports missing settings without logging secret values", () => {

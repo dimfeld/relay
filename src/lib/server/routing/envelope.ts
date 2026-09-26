@@ -1,5 +1,6 @@
 import type { IncomingEvent } from "../db/repositories/events";
 import type { DeliveryEnvelope } from "../integrations/types";
+import { correlationIdForEvent } from "../logging";
 
 /**
  * JSON tuple encoding keeps the event, action, and owner identity unambiguous. An operator
@@ -25,13 +26,9 @@ export function createDeliveryEnvelope<TPayload>(
   payload: TPayload,
   attemptId?: string
 ): DeliveryEnvelope<TPayload> {
-  const storedCorrelationId = event.metadata?.correlationId;
   return {
     eventId: event.id,
-    correlationId:
-      typeof storedCorrelationId === "string" && storedCorrelationId.length > 0
-        ? storedCorrelationId
-        : event.id,
+    correlationId: correlationIdForEvent(event),
     actionType,
     payload,
     idempotencyKey: createIdempotencyKey(event.id, actionType, integrationId, attemptId),

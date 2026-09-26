@@ -8,7 +8,8 @@ import {
   recoverStaleJobs,
   type Job,
 } from "../db/repositories/jobs";
-import { log } from "../logging";
+import { getEvent } from "../db/repositories/events";
+import { correlationIdForEvent, log } from "../logging";
 import { exponentialBackoff, type Backoff } from "./backoff";
 
 export interface QueueWorkerOptions<TPayload = unknown> {
@@ -49,7 +50,16 @@ export function createWorker<TPayload = unknown>({
       await handler(job);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log("error", "queue job handler failed", { queue, jobId: job.id, workerId, error: message });
+      const event = job.eventId ? getEvent(db, job.eventId) : null;
+      log("error", "queue job handler failed", {
+        stage: queue,
+        correlationId: event ? correlationIdForEvent(event) : undefined,
+        eventId: job.eventId,
+        queue,
+        jobId: job.id,
+        workerId,
+        error: message,
+      });
       const availableAt = new Date(now().getTime() + backoff(job.attempts)).toISOString();
       failJob(db, job.id, workerId, message, availableAt, true, now().toISOString());
       return true;
@@ -82,6 +92,7 @@ export function createWorker<TPayload = unknown>({
           await runOnce();
         } catch (error) {
           log("error", "queue worker failed", {
+            stage: queue,
             queue,
             workerId,
             error: error instanceof Error ? error.message : String(error),

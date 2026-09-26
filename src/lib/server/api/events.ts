@@ -54,6 +54,7 @@ export async function handlePublishEvent(
     correlationId
   );
   log("info", "internal event published", {
+    stage: "ingest",
     correlationId,
     service: identity.name,
     type: envelope.type,

@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { ServiceCapability } from "../config";
 import { createEvent, findEventBySource } from "../db/repositories/events";
 import { enqueueJob } from "../db/repositories/jobs";
+import type { OperationalMetrics } from "../logging/metrics";
+import { operationalMetrics } from "../logging/metrics";
 import {
   ROUTE_EVENT_JOB_MAX_ATTEMPTS,
   ROUTE_EVENT_JOB_TYPE,
@@ -48,11 +50,12 @@ export function publishEvent(
   db: Database,
   envelope: EventEnvelope,
   idempotencyKey: string | null,
-  correlationId: string
+  correlationId: string,
+  metrics: OperationalMetrics = operationalMetrics
 ): PublishResult {
   const sourceEventId = envelope.sourceEventId ?? idempotencyKey;
 
-  return db.transaction(() => {
+  const result = db.transaction(() => {
     if (sourceEventId) {
       const existing = findEventBySource(db, envelope.source, sourceEventId);
       if (existing) return { eventId: existing.id, duplicate: true };
@@ -74,4 +77,6 @@ export function publishEvent(
     });
     return { eventId: event.id, duplicate: false };
   })();
+  if (!result.duplicate) metrics.recordIncomingEvent();
+  return result;
 }
