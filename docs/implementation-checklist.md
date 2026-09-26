@@ -288,6 +288,18 @@ Objective: Prove the complete system before considering the MVP complete.
 1. feat: add failure UI
 1. feat: add correction and retry workflows
 1. chore: harden networking observability and end-to-end tests
+## Web UI Command Entry — TIM Plan 22
+
+Objective: Submit command text from the internal Activity page and process it through the same path as a Pebble webhook capture.
+
+- ☐ Add a command form with submission status, error feedback, and a link to the stored event.
+- ☐ Share capture storage and classification job creation with webhook ingestion. Preserve webhook parsing and duplicate handling.
+- ☐ Record the web source and submission time. Use the existing classification, context, validation, routing, and delivery behavior.
+- ☐ Prevent a repeated submission request from creating another event or job. Permit a new submission of the same text.
+- ☐ Verify web and webhook processing parity with fake adapters, and verify submission feedback in the UI.
+
+TIM plan 22 contains the code references, planned work, and acceptance criteria.
+
 ## 22. Final MVP Exit Criteria
 - ☐ Pebble can send a transcription to one public endpoint.
 - ☐ The raw payload is durably persisted before interpretation.
