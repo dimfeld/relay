@@ -117,6 +117,21 @@ export function findDeliveryByIdempotencyKey<TRequest = unknown, TResponse = unk
   return row ? mapDelivery<TRequest, TResponse>(row) : null;
 }
 
+/** Newest first. Without a limit, return every row; SQLite reads a negative LIMIT as no limit. */
+export function listRecentDeliveries(db: Database, limit?: number): Delivery[] {
+  return db
+    .query<DeliveryRow, [number]>("SELECT * FROM deliveries ORDER BY created_at DESC LIMIT ?")
+    .all(limit ?? -1)
+    .map(mapDelivery);
+}
+
+export function listDeliveriesForEvent(db: Database, eventId: string): Delivery[] {
+  return db
+    .query<DeliveryRow, [string]>("SELECT * FROM deliveries WHERE event_id = ? ORDER BY created_at")
+    .all(eventId)
+    .map(mapDelivery);
+}
+
 export function updateDelivery<TResponse>(
   db: Database,
   id: string,

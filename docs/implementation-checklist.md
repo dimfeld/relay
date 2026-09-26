@@ -153,17 +153,17 @@ Objective: Make cross-application delivery reliable and observable.
 ## Phase 9 — Internal API and Authentication
 Objective: Allow trusted applications to publish structured events and inspect Hub state.
 ### Tasks
-- ☐ Implement POST /api/events on the internal listener.
-- ☐ Validate event envelopes and payload size.
-- ☐ Implement distinct service identities/tokens for Mail, OmniApp, and future Tim integration.
-- ☐ Add capability checks such as events:publish and coding:request.
-- ☐ Implement GET endpoints needed by the admin UI for events, processing attempts, deliveries, executions, and projects.
-- ☐ Ensure none of these endpoints are mounted on the public listener.
+- ☑ Implement POST /api/events on the internal listener.
+- ☑ Validate event envelopes and payload size.
+- ☑ Implement distinct service identities/tokens for Mail, OmniApp, and future Tim integration.
+- ☑ Add capability checks such as events:publish and coding:request.
+- ☑ Implement GET endpoints needed by the admin UI for events, processing attempts, deliveries, executions, and projects.
+- ☑ Ensure none of these endpoints are mounted on the public listener.
 ### Done when
-- ☐ Mail can publish package.detected.
-- ☐ Unauthorized service tokens are rejected.
-- ☐ A token without coding:request cannot start a coding task.
-- ☐ Public listener cannot access internal APIs.
+- ☑ Mail can publish package.detected.
+- ☑ Unauthorized service tokens are rejected.
+- ☑ A token without coding:request cannot start a coding task.
+- ☑ Public listener cannot access internal APIs.
 ## Phase 10 — Project Registry
 Objective: Constrain one-off coding work to approved repositories.
 ### Tasks

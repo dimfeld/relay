@@ -6,7 +6,7 @@ const validEnvironment = {
   INTERNAL_PORT: "4311",
   DATABASE_PATH: "./data/relay.sqlite",
   PEBBLE_WEBHOOK_SECRETS: "first,second",
-  INTERNAL_SERVICE_CREDENTIALS: '{"mail":"token"}',
+  INTERNAL_SERVICE_CREDENTIALS: '{"mail":{"token":"token","capabilities":["events:publish"]}}',
   DEFAULT_EXECUTOR: "codex",
   CODEX_EXECUTABLE: "codex",
   CLAUDE_EXECUTABLE: "claude",
@@ -19,8 +19,31 @@ describe("loadConfig", () => {
     expect(config.PEBBLE_WEBHOOK_SECRETS).toEqual(["first", "second"]);
     expect(config.PEBBLE_MAX_BODY_BYTES).toBe(65_536);
     expect(config.PEBBLE_RATE_LIMIT_PER_MINUTE).toBe(30);
-    expect(config.INTERNAL_SERVICE_CREDENTIALS).toEqual({ mail: "token" });
+    expect(config.INTERNAL_SERVICE_CREDENTIALS).toEqual({
+      mail: { token: "token", capabilities: ["events:publish"] },
+    });
+    expect(config.INTERNAL_API_MAX_BODY_BYTES).toBe(65_536);
     expect(config.DELIVERY_MAX_ATTEMPTS).toBe(10);
+  });
+
+  test("rejects services that share a token", () => {
+    const environment = {
+      ...validEnvironment,
+      INTERNAL_SERVICE_CREDENTIALS: JSON.stringify({
+        mail: { token: "shared-token", capabilities: ["events:publish"] },
+        omniapp: { token: "shared-token", capabilities: ["events:publish"] },
+      }),
+    };
+    expect(() => loadConfig(environment)).toThrow(/distinct token/);
+    expect(() => loadConfig(environment)).not.toThrow(/shared-token/);
+  });
+
+  test("rejects unknown capabilities", () => {
+    const environment = {
+      ...validEnvironment,
+      INTERNAL_SERVICE_CREDENTIALS: '{"mail":{"token":"token","capabilities":["root"]}}',
+    };
+    expect(() => loadConfig(environment)).toThrow(/INTERNAL_SERVICE_CREDENTIALS/);
   });
 
   test("accepts Pebble request limits from the environment", () => {
