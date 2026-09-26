@@ -138,18 +138,18 @@ Objective: Route actions to the correct domain owner rather than storing domain 
 ## Phase 8 — Durable HTTP Delivery
 Objective: Make cross-application delivery reliable and observable.
 ### Tasks
-- ☐ Persist delivery rows before making HTTP requests.
-- ☐ Send a stable idempotency key/event ID downstream.
-- ☐ Implement success/failure transitions.
-- ☐ Implement retry with exponential backoff.
-- ☐ Record HTTP status and a bounded/sanitized response body for debugging.
-- ☐ Add dead-letter handling after the configured retry limit.
-- ☐ Add manual retry support from the service layer.
-- ☐ Ensure secrets/Authorization headers are never written to logs.
+- ☑ Persist delivery rows before making HTTP requests.
+- ☑ Send a stable idempotency key/event ID downstream.
+- ☑ Implement success/failure transitions.
+- ☑ Implement retry with exponential backoff.
+- ☑ Record HTTP status and a bounded/sanitized response body for debugging.
+- ☑ Add dead-letter handling after the configured retry limit.
+- ☑ Add manual retry support from the service layer.
+- ☑ Ensure secrets/Authorization headers are never written to logs.
 ### Done when
-- ☐ Transient destination failure retries automatically.
-- ☐ Permanent failure remains visible and retryable.
-- ☐ Repeated retries do not create duplicate downstream objects when the receiver honors idempotency.
+- ☑ Transient destination failure retries automatically.
+- ☑ Permanent failure remains visible and retryable.
+- ☑ Repeated retries do not create duplicate downstream objects when the receiver honors idempotency.
 ## Phase 9 — Internal API and Authentication
 Objective: Allow trusted applications to publish structured events and inspect Hub state.
 ### Tasks

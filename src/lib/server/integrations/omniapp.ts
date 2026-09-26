@@ -1,5 +1,5 @@
 import type { Integration } from "../db/repositories/integrations";
-import { fetchTransport, postJson, responseObjectId } from "./http";
+import { fetchTransport, postJson, requireObjectId } from "./http";
 import type { DeliveryEnvelope, HttpTransport, OwnerAdapter } from "./types";
 
 const OMNIAPP_ENDPOINTS = {
@@ -60,12 +60,11 @@ export function createOmniAppAdapter(transport: HttpTransport = fetchTransport):
     async deliver(integration: Integration, envelope: DeliveryEnvelope) {
       const { path, body } = omniAppRequest(envelope);
       const response = await postJson({ integration, envelope, path, body, transport });
-      const downstreamId = responseObjectId(response, OMNIAPP_RESPONSE_ID_FIELD);
-      if (!downstreamId) {
-        throw new Error(
-          `OmniApp response for ${envelope.actionType} did not include an object id.`
-        );
-      }
+      const downstreamId = requireObjectId(
+        response,
+        OMNIAPP_RESPONSE_ID_FIELD,
+        `OmniApp response for ${envelope.actionType} did not include an object id.`
+      );
       return { downstreamId, response };
     },
   };

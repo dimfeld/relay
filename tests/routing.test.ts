@@ -94,7 +94,12 @@ describe("routing and owner adapters", () => {
     expect(outcome.delivery).toMatchObject({
       status: "succeeded",
       routeId: expect.any(String),
-      response: { downstreamId: "mail-task-42", response: { id: "mail-task-42" } },
+      response: {
+        status: 201,
+        body: { id: "mail-task-42" },
+        bodyTruncated: false,
+        downstreamId: "mail-task-42",
+      },
     });
     expect(outcome.actionResult).not.toBeNull();
     expect(outcome.actionResult?.result).toMatchObject({
@@ -343,7 +348,7 @@ describe("routing and owner adapters", () => {
     ).toBe(2);
   });
 
-  test("marks non-2xx adapter responses as failed deliveries", async () => {
+  test("schedules a retry for a transient non-2xx response", async () => {
     const mail = makeIntegration("Failing Mail", "mail", "https://mail.test");
     const event = makeEvent("event-failure", "pebble.transcription", {});
     makeRoute(mail.id, { actionType: "task.create" });
@@ -352,6 +357,7 @@ describe("routing and owner adapters", () => {
       registry: createIntegrationRegistry({
         mailTransport: async () => ({ status: 503, body: { message: "unavailable" } }),
       }),
+      log: () => {},
     });
 
     const outcome = await service.routeAction(event, {
@@ -365,15 +371,15 @@ describe("routing and owner adapters", () => {
     if (outcome.status !== "failed") return;
     expect(outcome.delivery).toMatchObject({
       status: "failed",
+      attempts: 1,
+      nextAttemptAt: expect.any(String),
       lastError: expect.stringContaining("HTTP 503"),
+      response: { status: 503, body: { message: "unavailable" } },
     });
-    expect(outcome.actionResult).toMatchObject({
-      status: "failed",
-      error: expect.stringContaining("HTTP 503"),
-    });
+    expect(outcome.actionResult).toBeNull();
   });
 
-  test("marks a successful HTTP response without an object ID as failed", async () => {
+  test("marks a successful HTTP response without an object ID as dead", async () => {
     const mail = makeIntegration("Mail without ID", "mail", "https://mail.test");
     const event = makeEvent("event-missing-id", "pebble.transcription", {});
     makeRoute(mail.id, { actionType: "task.create" });
@@ -382,6 +388,7 @@ describe("routing and owner adapters", () => {
       registry: createIntegrationRegistry({
         mailTransport: async () => ({ status: 201, body: { accepted: true } }),
       }),
+      log: () => {},
     });
 
     const outcome = await service.routeAction(event, {
@@ -391,9 +398,10 @@ describe("routing and owner adapters", () => {
       dueAt: null,
     });
 
-    expect(outcome.status).toBe("failed");
-    if (outcome.status !== "failed") return;
+    expect(outcome.status).toBe("dead");
+    if (outcome.status !== "dead") return;
     expect(outcome.delivery.lastError).toContain("did not include an object id");
+    expect(outcome.actionResult?.status).toBe("failed");
   });
 
   test("falls back to the event ID when an event has no correlation ID", () => {
