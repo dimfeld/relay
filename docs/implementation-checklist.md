@@ -1,10 +1,12 @@
-# Relay — Coding Agent Implementation Checklist
-Purpose: Sequential implementation plan for an unattended coding agent.
+# Relay — Implementation Checklist
+Purpose: Implementation plan for event capture, classification, routing, and delivery.
+
+Agent coding is outside Relay scope. Phase numbers are retained so existing tim plan references remain valid.
 ## 0. Global Implementation Constraints
 - ☐ Use Bun, SvelteKit, TypeScript, and SQLite. oxfmt and oxlint as well.
 - ☐ Keep the public webhook listener and internal/admin listener separate.
 - ☐ Do not make Relay the canonical owner of tasks, reminders, packages, or project work.
-- ☐ Use TypeSafe AI Jev for typed action classification and GPT-6 Luna through the Vercel AI SDK for schema-validated field extraction and other in-process language tasks, excluding coding agent execution.
+- ☐ Use TypeSafe AI Jev for typed action classification and GPT-6 Luna through the Vercel AI SDK for schema-validated field extraction and other in-process language tasks.
 - ☐ Do not allow model-generated arbitrary shell commands, filesystem paths, merge commands, or deployment commands.
 - ☐ Persist original incoming data before performing interpretation or side effects.
 - ☐ Make side-effecting operations idempotent where practical.
@@ -14,8 +16,8 @@ Purpose: Sequential implementation plan for an unattended coding agent.
 Objective: Create the application foundation and establish clear module boundaries.
 ### Tasks
 - ☑ Initialize the Bun/SvelteKit TypeScript application.
-- ☑ Add environment configuration for PUBLIC_PORT, INTERNAL_PORT, DATABASE_PATH, public webhook secret(s), internal service credentials, and model/executor settings.
-- ☑ Create server module directories for db, events, classifier, routing, integrations, queue, commands, projects, agents, auth, and logging.
+- ☑ Add environment configuration for PUBLIC_PORT, INTERNAL_PORT, DATABASE_PATH, public webhook secret(s), internal service credentials, and model settings.
+- ☑ Create server module directories for db, events, classifier, routing, integrations, queue, commands, auth, and logging.
 - ☑ Add a single typed configuration loader that validates required environment variables at startup.
 - ☑ Add structured application logging with correlation/event IDs as fields.
 - ☑ Add a health endpoint to the internal listener only.
@@ -27,7 +29,7 @@ Objective: Create the application foundation and establish clear module boundari
 - ☑ Public listener exposes no health/admin endpoint.
 - ☑ Typecheck and baseline tests pass.
 ## Phase 2 — SQLite Foundation and Migrations
-Objective: Create durable storage for events, attempts, jobs, routing, delivery, and executions.
+Objective: Create durable storage for events, attempts, jobs, routing, and delivery.
 ### Tasks
 - ☑ Choose and configure a SQLite access layer compatible with Bun.
 - ☑ Implement migrations.
@@ -37,10 +39,8 @@ Objective: Create durable storage for events, attempts, jobs, routing, delivery,
 - ☑ Create classifications table storing validated result plus model/provider metadata.
 - ☑ Create integrations and event_routes tables.
 - ☑ Create deliveries table.
-- ☑ Create projects table.
-- ☑ Create executions and execution_logs tables.
 - ☑ Create action_results/configuration tables as needed.
-- ☑ Add indexes for event lookup, job claiming, pending deliveries, and execution status.
+- ☑ Add indexes for event lookup, job claiming, and pending deliveries.
 - ☑ Add repository/data-access modules rather than using raw SQL throughout route handlers.
 ### Done when
 - ☑ Fresh database can be created entirely from migrations.
@@ -75,7 +75,7 @@ Objective: Provide a small durable queue using SQLite.
 - ☐ Implement retry attempts and available_at scheduling.
 - ☐ Add exponential backoff with sensible caps.
 - ☐ Ensure a process crash after job claim does not permanently lose the job.
-- ☐ Create worker loops for classification, delivery, and agent execution.
+- ☐ Create worker loops for classification and delivery.
 - ☐ Keep workers separable even if they run in one process initially.
 ### Done when
 - ☐ Two worker instances cannot successfully process the same job concurrently.
@@ -97,12 +97,12 @@ Follow [Model Pipeline](model-pipeline.md) for provider roles and the required f
 - ☐ Validate Jev's selected label and Luna's fields before routing; do not call Luna for `unknown`.
 - ☐ On extraction schema failure, retry once with a repair request or mark needs_review; mark needs_review if repair fails.
 - ☐ Preserve the event and create a new processing attempt for every retry or reclassification.
-- ☐ Add deterministic preprocessing for obvious wake-name detection, project alias hints, and other exact signals.
+- ☐ Add deterministic preprocessing for obvious wake-name detection and other exact signals.
 ### Done when
 - ☐ Representative utterances classify into all supported action types.
 - ☐ Invalid or mismatched Luna output cannot trigger a side effect.
 - ☐ Classifier failure leaves the source event recoverable and visible as needs_review.
-- ☐ Tests cover each action label, field extraction, provider failures, note targets, coding project validation, and unknown input.
+- ☐ Tests cover each action label, field extraction, provider failures, note targets, unsupported commands and unknown input.
 ## Phase 6 — Context and Note Continuation
 Objective: Allow recent related captures to influence classification without creating unbounded conversational state.
 ### Tasks
@@ -156,74 +156,23 @@ Objective: Allow trusted applications to publish structured events and inspect H
 - ☑ Implement POST /api/events on the internal listener.
 - ☑ Validate event envelopes and payload size.
 - ☑ Implement distinct service identities/tokens for Mail, OmniApp, and future Tim integration.
-- ☑ Add capability checks such as events:publish and coding:request.
-- ☑ Implement GET endpoints needed by the admin UI for events, processing attempts, deliveries, executions, and projects.
+- ☑ Add capability checks such as events:publish and admin:read.
+- ☑ Implement GET endpoints needed by the admin UI for events, processing attempts, and deliveries.
 - ☑ Ensure none of these endpoints are mounted on the public listener.
 ### Done when
 - ☑ Mail can publish package.detected.
 - ☑ Unauthorized service tokens are rejected.
-- ☑ A token without coding:request cannot start a coding task.
 - ☑ Public listener cannot access internal APIs.
-## Phase 10 — Project Registry
-Objective: Constrain one-off coding work to approved repositories.
+## Phase 10 — Project Catalog
+Objective: Provide project metadata for reference and routing.
 ### Tasks
-- ☑ Implement project configuration/storage with id, name, aliases, directory, default branch, allowed agents, and optional project instructions.
-- ☑ Resolve natural-language project names through registered aliases.
-- ☑ Reject unregistered project paths.
-- ☑ Validate configured project directories at startup or registration time.
-- ☑ Expose read-only project listing/detail in the admin UI/API.
-- ☑ Add per-project policy flags for agent push, merge, and deploy.
+- ☑ Store project IDs, names, aliases, directories, and optional instructions.
+- ☑ Resolve project names through registered aliases.
+- ☑ Validate configured project directories at startup or registration.
+- ☑ Expose read-only project listing and detail through the internal UI/API.
 ### Done when
-- ☑ ‘Omni’ reliably resolves to the configured OmniApp repository.
-- ☑ A model-provided arbitrary path is ignored/rejected.
-- ☑ Project policies are available before any execution starts.
-## Phase 11 — Codex and Claude Executors
-Objective: Run one-off coding tasks safely without requiring Tim.
-### Tasks
-- ☐ Define AgentExecutor interface.
-- ☐ Implement CodexExecutor.
-- ☐ Implement ClaudeExecutor.
-- ☐ Run processes with an explicit working directory and controlled environment.
-- ☐ Capture stdout/stderr incrementally into execution_logs.
-- ☐ Support timeout/cancellation.
-- ☐ Create an unattended prompt wrapper with repository/task context and no-interactive-question instruction.
-- ☐ Keep coding executors separate from the Jev and Luna adapters; pass only validated coding requests to an executor, and do not use Luna to plan, write, review, or run code.
-- ☐ Do not allow the classifier to invent arbitrary executable names or CLI flags outside the executor adapter.
-- ☐ Record requested provider/model and actual provider/model.
-### Done when
-- ☐ A test project can execute a no-op/safe coding task with each configured executor.
-- ☐ Execution logs stream/persist correctly.
-- ☐ Timeout terminates the child process and records failure.
-- ☐ Executor cannot leave the registered project directory through model-selected working-directory changes.
-## Phase 12 — Git Branch Lifecycle
-Objective: Make unattended coding output reviewable and non-destructive by default.
-### Tasks
-- ☐ Before execution, verify repository state against policy.
-- ☐ Fetch the configured remote.
-- ☐ Create a branch using agent/<execution-id>-<slug>.
-- ☐ Run the agent on that branch.
-- ☐ Run configured validation/test commands after the agent completes.
-- ☐ Commit changes with execution metadata.
-- ☐ Push the branch if allowed by project policy.
-- ☐ Record branch name and commit SHA.
-- ☐ Do not automatically merge.
-- ☐ If validation fails, record the result and preserve the branch/logs for inspection.
-### Done when
-- ☐ Successful task ends with a pushed reviewable branch and recorded commit.
-- ☐ Default branch is unchanged.
-- ☐ Dirty-repository and failed-test behaviors are deterministic and tested.
-## Phase 13 — Explicit Merge / Deploy Action Boundary
-Objective: Prepare safe APIs without enabling arbitrary privileged execution.
-### Tasks
-- ☐ Define typed git.merge.requested and deploy.requested actions.
-- ☐ Add policy states such as automatic, review, and explicit-confirmation.
-- ☐ Default merge and production deploy to explicit-confirmation.
-- ☐ Implement adapter interfaces only; actual production deployment adapters may remain unimplemented in MVP.
-- ☐ Ensure a model cannot turn free-form text directly into a shell deployment command.
-### Done when
-- ☐ Merge/deploy requests can be represented and policy-checked.
-- ☐ No production deployment can occur through arbitrary model output.
-- ☐ MVP can ship with these actions disabled or review-only.
+- ☑ “Omni” resolves to the configured OmniApp project.
+- ☑ Registered project metadata is available through the internal UI/API.
 ## Phase 14 — Admin UI: Activity
 Objective: Create an operational console rather than another productivity inbox.
 ### Tasks
@@ -235,16 +184,13 @@ Objective: Create an operational console rather than another productivity inbox.
 ### Done when
 - ☑ A Pebble capture can be followed end-to-end from raw webhook through downstream result.
 - ☑ No Tasks, Reminders, Notes, or Packages top-level product sections exist in the Hub.
-## Phase 15 — Admin UI: Executions and Failures
-Objective: Support focused inspection of coding agents and broken integrations.
+## Phase 15 — Admin UI: Failures
+Objective: Inspect classification failures and failed integration deliveries.
 ### Tasks
-- ☐ Build Executions list with status, project, task summary, executor/model, start time, duration, branch, and commit.
-- ☐ Build execution detail page with request, generated wrapper prompt, stdout/stderr, validation result, branch, commit, and final agent response.
-- ☐ Build Failures/dead-letter page for classification, delivery, and execution failures.
+- ☐ Build Failures/dead-letter page for classification and delivery failures.
 - ☐ Add manual retry controls with authorization.
 ### Done when
-- ☐ One-off coding work can be inspected without opening Tim.
-- ☐ Failed delivery or agent execution can be retried from the Hub.
+- ☐ Failed classification or delivery can be retried from the Hub.
 ## Phase 16 — Reclassification and Corrections
 Objective: Allow the system to improve operationally without destroying historical evidence.
 ### Tasks
@@ -271,12 +217,12 @@ Objective: Ensure reminders are scheduled and surfaced by Mail rather than by Re
 ## Phase 18 — Observability and Operational Hardening
 Objective: Make failures diagnosable in a long-running personal service.
 ### Tasks
-- ☐ Add correlation IDs across webhook, classification, routing, delivery, and execution.
+- ☐ Add correlation IDs across webhook, classification, routing, and delivery.
 - ☐ Use structured logs everywhere.
-- ☐ Add counters/timings for incoming events, classifier latency/failure, delivery retry counts, and execution outcomes.
+- ☐ Add counters/timings for incoming events, classifier latency/failure, and delivery retry counts.
 - ☐ Optionally add OpenTelemetry instrumentation behind configuration.
 - ☐ Add database backup guidance or an automated periodic SQLite backup mechanism appropriate for the deployment.
-- ☐ Add log retention / execution-log size limits.
+- ☐ Add application log retention.
 ### Done when
 - ☐ A single correlation ID can trace an event across the pipeline.
 - ☐ Large logs cannot grow the database without bound.
@@ -303,12 +249,11 @@ Objective: Prove the complete system before considering the MVP complete.
 - ☐ Add fixture for note capture → configured note owner.
 - ☐ Add fixture for note continuation using recent context.
 - ☐ Add fixture for Mail package.detected → OmniApp delivery.
-- ☐ Add fixture for coding command → registered project → executor → branch/commit/push.
 - ☐ Add fixture for classifier failure → needs_review.
 - ☐ Add fixture for destination outage → retry → eventual success.
 - ☐ Add fixture for duplicate source webhook.
 - ☐ Add authorization tests across public/internal boundaries.
-- ☐ Add regression test ensuring merge/deploy cannot be invoked by an unauthorized or malformed action.
+- ☐ Verify that unsupported coding commands cannot cause a side effect.
 ### Done when
 - ☐ All acceptance fixtures pass.
 - ☐ Fresh install plus documented configuration can reproduce the environment.
@@ -321,11 +266,9 @@ Objective: Prove the complete system before considering the MVP complete.
 1. feat: add context-aware note continuation
 1. feat: add integration routing and durable delivery
 1. feat: add internal service API and auth
-1. feat: add project registry
-1. feat: add codex and claude executors
-1. feat: add agent git branch workflow
+1. feat: add project catalog
 1. feat: add admin activity and event detail UI
-1. feat: add execution and failure UI
+1. feat: add failure UI
 1. feat: add correction and retry workflows
 1. chore: harden networking observability and end-to-end tests
 ## 22. Final MVP Exit Criteria
@@ -334,8 +277,6 @@ Objective: Prove the complete system before considering the MVP complete.
 - ☐ The Hub classifies task, reminder, note, continuation, command, and unknown with schema validation.
 - ☐ Tasks/reminders are delivered to Mail, not managed in the Hub.
 - ☐ Structured cross-app events can route to OmniApp.
-- ☐ One-off coding work can run via Codex or Claude against only registered projects.
-- ☐ Coding work creates and pushes a reviewable branch without auto-merging.
 - ☐ Every important pipeline stage is inspectable from the admin UI.
 - ☐ Failures are retried or surfaced; no input disappears silently.
 - ☐ Public and internal network surfaces are isolated.

@@ -18,7 +18,7 @@ This document records work outside the Relay repository. The Relay tim plans cov
 
 - Accept `package.detected` deliveries from Relay and create or update the OmniApp-owned package record. Return its object ID and honor Relay's idempotency key.
 - If OmniApp is selected as the notes owner, accept `note.create` and `note.append`, return the owned note ID, and honor idempotency keys. Confirm note ownership before Relay enables these routes.
-- If OmniApp publishes structured events to Relay, use its own service token and `source: "omniapp"`. Relay gives the OmniApp identity `events:publish`, plus `coding:request` or `deploy:request` only if OmniApp must publish `coding.task.requested`, `deploy.requested`, or `git.merge.requested`.
+- If OmniApp publishes structured events to Relay, use its own service token and `source: "omniapp"`. Relay gives the OmniApp identity `events:publish`.
 - Define the exact request and response fields with Relay before a live integration test. The Relay plans can use local fake OmniApp endpoints until this contract is available.
 
 ## Integration proof
