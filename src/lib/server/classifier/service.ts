@@ -293,6 +293,24 @@ function buildAction(
         },
       };
     }
+    case "tim.plan.create":
+    case "tim.plan.create_and_execute": {
+      if (!fields.description.trim()) return { reason: "Tim plan description is empty" };
+      const project = resolveProject(
+        fields.project,
+        options.projects,
+        options.preprocessed.signals
+      );
+      if (!project) return { reason: "Tim plan request does not name a registered project" };
+      return {
+        action: {
+          type: fields.type,
+          projectId: project.id,
+          projectName: project.name,
+          description: fields.description,
+        },
+      };
+    }
     default:
       return { action: fields };
   }

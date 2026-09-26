@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import type { ServiceCapability } from "../config";
+import { DEFAULT_DELIVERY_MAX_ATTEMPTS } from "../config";
+import { TIM_PLAN_REQUEST_EVENT_TYPES } from "../classifier/schemas";
 import { createEvent, findEventBySource } from "../db/repositories/events";
 import { enqueueJob } from "../db/repositories/jobs";
 import type { OperationalMetrics } from "../logging/metrics";
@@ -27,6 +29,9 @@ export type EventEnvelope = z.infer<typeof eventEnvelopeSchema>;
 
 /** Event types that start work beyond a plain publish need an extra capability. */
 const EVENT_TYPE_CAPABILITIES: Record<string, ServiceCapability> = {
+  ...Object.fromEntries(
+    Object.keys(TIM_PLAN_REQUEST_EVENT_TYPES).map((type) => [type, "tim:plan"])
+  ),
   "coding.task.requested": "coding:request",
   "deploy.requested": "deploy:request",
   "git.merge.requested": "deploy:request",
@@ -51,7 +56,8 @@ export function publishEvent(
   envelope: EventEnvelope,
   idempotencyKey: string | null,
   correlationId: string,
-  metrics: OperationalMetrics = operationalMetrics
+  metrics: OperationalMetrics = operationalMetrics,
+  timPlanMaxAttempts = DEFAULT_DELIVERY_MAX_ATTEMPTS
 ): PublishResult {
   const sourceEventId = envelope.sourceEventId ?? idempotencyKey;
 
@@ -73,7 +79,9 @@ export function publishEvent(
       queue: "delivery",
       payload: { eventId: event.id },
       eventId: event.id,
-      maxAttempts: ROUTE_EVENT_JOB_MAX_ATTEMPTS,
+      maxAttempts: Object.hasOwn(TIM_PLAN_REQUEST_EVENT_TYPES, envelope.type)
+        ? timPlanMaxAttempts
+        : ROUTE_EVENT_JOB_MAX_ATTEMPTS,
     });
     return { eventId: event.id, duplicate: false };
   })();

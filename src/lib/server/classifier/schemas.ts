@@ -6,13 +6,25 @@ export const ACTION_TYPES = [
   "note.create",
   "note.append",
   "command.execute",
+  "tim.plan.create",
+  "tim.plan.create_and_execute",
   "unknown",
 ] as const;
+
+export const TIM_PLAN_REQUEST_EVENT_TYPES = {
+  "tim.plan.create.requested": "tim.plan.create",
+  "tim.plan.create_and_execute.requested": "tim.plan.create_and_execute",
+} as const;
 
 export type ActionType = (typeof ACTION_TYPES)[number];
 export type ExtractableActionType = Exclude<ActionType, "unknown">;
 
 const text = z.string().trim().min(1);
+const preservedText = z
+  .string()
+  .min(1)
+  .refine((value) => value.trim().length > 0);
+const extractionText = z.string().min(1);
 const dateTime = z.iso.datetime({ offset: true });
 
 /*
@@ -49,6 +61,16 @@ export const extractionSchemas = {
     project: text.nullable(),
     task: text,
   }),
+  "tim.plan.create": z.strictObject({
+    type: z.literal("tim.plan.create"),
+    project: text.nullable(),
+    description: extractionText,
+  }),
+  "tim.plan.create_and_execute": z.strictObject({
+    type: z.literal("tim.plan.create_and_execute"),
+    project: text.nullable(),
+    description: extractionText,
+  }),
 } satisfies Record<ExtractableActionType, z.ZodType>;
 
 export type Extraction<T extends ExtractableActionType> = z.infer<(typeof extractionSchemas)[T]>;
@@ -79,6 +101,20 @@ export const commandExecuteAction = z.strictObject({
   }),
 });
 
+export const timPlanCreateAction = z.strictObject({
+  type: z.literal("tim.plan.create"),
+  projectId: text,
+  projectName: text,
+  description: preservedText,
+});
+
+export const timPlanCreateAndExecuteAction = z.strictObject({
+  type: z.literal("tim.plan.create_and_execute"),
+  projectId: text,
+  projectName: text,
+  description: preservedText,
+});
+
 export const unknownAction = z.strictObject({
   type: z.literal("unknown"),
   reason: text,
@@ -91,6 +127,8 @@ export const actionSchema = z.discriminatedUnion("type", [
   noteCreateAction,
   noteAppendAction,
   commandExecuteAction,
+  timPlanCreateAction,
+  timPlanCreateAndExecuteAction,
   unknownAction,
 ]);
 

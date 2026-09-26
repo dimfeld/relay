@@ -16,6 +16,7 @@ export const DEFAULT_DELIVERY_MAX_ATTEMPTS = 10;
 
 export const SERVICE_CAPABILITIES = [
   "events:publish",
+  "tim:plan",
   "coding:request",
   "deploy:request",
   "admin:read",

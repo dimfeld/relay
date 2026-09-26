@@ -102,7 +102,7 @@ async function failDelivery() {
     notes: null,
     dueAt: null,
   });
-  if (outcome.status === "unrouted") throw new Error("The test route did not match.");
+  if (!("delivery" in outcome)) throw new Error("The test route did not match.");
   const worker = createDeliveryWorker(db, createDeliveryRetryHandler(routing), settings);
   return { event, delivery: outcome.delivery, worker, recover: () => (status = 201) };
 }

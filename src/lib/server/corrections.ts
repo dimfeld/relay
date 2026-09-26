@@ -12,6 +12,7 @@ import { actionSchema, type Action } from "./classifier/schemas";
 import type { ClassificationJobPayload } from "./classifier/worker";
 import { CLASSIFICATION_JOB_MAX_ATTEMPTS } from "./config";
 import { nowIso } from "./db/json";
+import { resolveProject } from "./projects/catalog";
 import {
   createAttempt,
   getAttempt,
@@ -60,18 +61,40 @@ export interface CorrectionResult {
 }
 
 /** Build the replacement action from the form fields and validate it with the dispatch schema. */
-export function parseCorrection(input: Pick<CorrectionInput, "actionType" | "fields">): Action {
+export function parseCorrection(
+  db: Database,
+  input: Pick<CorrectionInput, "actionType" | "fields">
+): Action {
   const specs = CORRECTION_FIELDS[input.actionType];
   if (!specs) throw new AdminActionError(400, `Action type ${input.actionType} cannot be chosen.`);
 
-  const action: Record<string, string | null> = { type: input.actionType };
+  const action: Record<string, unknown> = { type: input.actionType };
   const missing: string[] = [];
   for (const spec of specs) {
-    const value = input.fields[spec.name]?.trim() || null;
-    if (spec.required && value === null) missing.push(spec.label);
+    const supplied = input.fields[spec.name];
+    const value =
+      spec.name === "description"
+        ? supplied && supplied.trim()
+          ? supplied
+          : null
+        : supplied?.trim() || null;
+    if (spec.required && (!value || !value.trim())) missing.push(spec.label);
     action[spec.name] = value;
   }
   if (missing.length) throw new AdminActionError(400, `Enter a value for: ${missing.join(", ")}.`);
+
+  if (
+    input.actionType === "tim.plan.create" ||
+    input.actionType === "tim.plan.create_and_execute"
+  ) {
+    const project = resolveProject(db, action.project as string | null);
+    if (!project) {
+      throw new AdminActionError(400, "Enter a registered project name or alias.");
+    }
+    action.projectId = project.id;
+    action.projectName = project.name;
+    delete action.project;
+  }
 
   const parsed = actionSchema.safeParse(action);
   if (!parsed.success) {
@@ -85,13 +108,17 @@ export function parseCorrection(input: Pick<CorrectionInput, "actionType" | "fie
 
 function attemptStatus(outcome: RoutingOutcome): { status: string; error: string | null } {
   if (outcome.status === "unrouted") return { status: "failed", error: outcome.actionResult.error };
-  return { status: outcome.status, error: outcome.delivery.lastError };
+  if ("delivery" in outcome) return { status: outcome.status, error: outcome.delivery.lastError };
+  return {
+    status: outcome.outcome === "succeeded" ? "succeeded" : outcome.outcome,
+    error: outcome.actionResult.error,
+  };
 }
 
 /**
  * Replace the classification of an event with an operator's action and dispatch it. The
  * original classification is kept. The correction is a new classification and a new
- * "correction" processing attempt, and its delivery idempotency key includes the attempt ID.
+ * "correction" processing attempt, and its dispatch idempotency key includes the attempt ID.
  * A repeat of the same attempt ID returns the first result and does not dispatch again.
  */
 export async function correctClassification(
@@ -120,7 +147,7 @@ export async function correctClassification(
     };
   }
 
-  const action = parseCorrection(input);
+  const action = parseCorrection(db, input);
   const correction: CorrectionDetails = {
     correctedBy,
     correctsClassificationId: listClassificationsForEvent(db, eventId).at(-1)?.id ?? null,
@@ -168,7 +195,7 @@ export async function correctClassification(
 
   const { status, error } = attemptStatus(outcome);
   const finished = finish(status, error, {
-    deliveryId: outcome.status === "unrouted" ? null : outcome.delivery.id,
+    deliveryId: "delivery" in outcome ? outcome.delivery.id : null,
     actionResultId: outcome.actionResult?.id ?? null,
   });
   return { attempt: finished, classification, duplicate: false };

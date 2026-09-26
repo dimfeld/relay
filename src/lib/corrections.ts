@@ -32,6 +32,14 @@ export const CORRECTION_FIELDS = {
     { name: "targetId", label: "Target note ID", required: true },
     { name: "contextEventId", label: "Context event ID", required: true },
   ],
+  "tim.plan.create": [
+    { name: "project", label: "Project name or alias", required: true },
+    { name: "description", label: "Plan description", required: true },
+  ],
+  "tim.plan.create_and_execute": [
+    { name: "project", label: "Project name or alias", required: true },
+    { name: "description", label: "Plan description", required: true },
+  ],
 } as const satisfies Record<string, readonly CorrectionField[]>;
 
 export type CorrectionActionType = keyof typeof CORRECTION_FIELDS;

@@ -36,6 +36,7 @@ import {
 const credentials = {
   mail: { token: "mail-token", capabilities: ["events:publish"] },
   omniapp: { token: "omni-token", capabilities: ["events:publish", "coding:request"] },
+  tim: { token: "tim-token", capabilities: ["events:publish", "tim:plan"] },
   admin: { token: "admin-token", capabilities: ["admin:read"] },
 };
 
@@ -190,6 +191,31 @@ describe("POST /api/events", () => {
       "omni-token"
     );
     expect(response.status).toBe(202);
+  });
+
+  test("requires tim:plan to publish Tim plan requests", async () => {
+    const denied = await publish(
+      {
+        source: "mail",
+        type: "tim.plan.create.requested",
+        payload: { project: "relay", description: "Make a plan." },
+      },
+      "mail-token"
+    );
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({
+      error: "Service lacks the tim:plan capability for tim.plan.create.requested.",
+    });
+
+    const accepted = await publish(
+      {
+        source: "tim",
+        type: "tim.plan.create_and_execute.requested",
+        payload: { project: "relay", description: "Make and queue a plan." },
+      },
+      "tim-token"
+    );
+    expect(accepted.status).toBe(202);
   });
 
   test("rejects deploy requests without deploy:request", async () => {

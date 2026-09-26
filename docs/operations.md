@@ -31,3 +31,13 @@ The destination must not already exist. Schedule the command with cron or a syst
 To restore a backup, stop every Relay process that can write to the database. Copy the backup file to the configured `DATABASE_PATH`, then start Relay again. Keep backup files in a separate storage location if they must survive loss of the host.
 
 Relay does not add OpenTelemetry instrumentation.
+
+## Tim plan actions
+
+Install the Tim CLI on the Relay service host and make the `tim` executable available on that service's `PATH`. Add each project to Relay's project catalog with its Tim initialized repository directory. You can initialize a project with `tim init` from that repository directory.
+
+Relay runs `tim add` in the catalog directory. A create-only action leaves Tim's plan status and simple flag at their normal defaults. A create-and-execute action creates a simple plan with status `queued`. Relay reports success when Tim returns a plan ID; Tim remains responsible for generating and executing the plan.
+
+For queued plans to run, enable **Automatic Plan Execution** for the project in Tim's web settings and set its concurrent plan limit and runner node. The Tim node that saves the setting runs the project's queue. Tim's queue runner starts eligible queued plans; Relay does not run `tim agent`.
+
+The queued action needs a Tim version that accepts `tim add --simple --status queued`.

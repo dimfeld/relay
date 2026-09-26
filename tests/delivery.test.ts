@@ -74,7 +74,7 @@ async function routeTask(service: RoutingService, event: IncomingEvent): Promise
     notes: null,
     dueAt: null,
   });
-  if (outcome.status === "unrouted") throw new Error("The test route did not match.");
+  if (!("delivery" in outcome)) throw new Error("The test route did not match.");
   return outcome;
 }
 

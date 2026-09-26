@@ -51,7 +51,9 @@ export async function handlePublishEvent(
     context.db,
     envelope,
     request.headers.get("idempotency-key"),
-    correlationId
+    correlationId,
+    undefined,
+    context.config.DELIVERY_MAX_ATTEMPTS
   );
   log("info", "internal event published", {
     stage: "ingest",

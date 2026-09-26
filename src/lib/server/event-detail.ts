@@ -157,6 +157,12 @@ function deriveFailedStep(
     };
   }
   if (lastAction?.status === "succeeded") return null;
+  if (lastAction?.status === "needs_reconciliation") {
+    return {
+      step: "Action",
+      reason: lastAction.error ?? "The Tim command needs reconciliation before retrying.",
+    };
+  }
 
   const failedDelivery = [...deliveries]
     .reverse()

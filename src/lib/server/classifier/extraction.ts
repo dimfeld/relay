@@ -12,6 +12,10 @@ const FIELD_GUIDANCE: Record<ExtractableActionType, string> = {
   "note.append": "body: the content to add to the earlier note, in the speaker's words.",
   "command.execute":
     "project: the project name or alias exactly as spoken, or null when none is named. task: a plain description of the requested code change. Do not include commands, paths, flags, or executables.",
+  "tim.plan.create":
+    "project: the registered project name or alias, or null when none is named. description: the full plan description in the speaker's words. Do not include a path, executable, or CLI flags.",
+  "tim.plan.create_and_execute":
+    "project: the registered project name or alias, or null when none is named. description: the full plan description in the speaker's words. Tim will generate and execute the plan after it is queued. Do not include a path, executable, or CLI flags.",
 };
 
 export interface ExtractionInput {

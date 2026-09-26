@@ -1,6 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { DEFAULT_DELIVERY_MAX_ATTEMPTS } from "../config";
-import { createActionResult, type ActionResult } from "../db/repositories/actionResults";
+import {
+  createActionResult,
+  listActionResultsForEvent,
+  updateActionResult,
+  type ActionResult,
+} from "../db/repositories/actionResults";
 import {
   createDelivery,
   findDeliveryByIdempotencyKey,
@@ -13,10 +18,17 @@ import type { IncomingEvent } from "../db/repositories/events";
 import { getIntegration } from "../db/repositories/integrations";
 import { enqueueJob, type Job } from "../db/repositories/jobs";
 import type { Action } from "../classifier/schemas";
+import { TIM_PLAN_REQUEST_EVENT_TYPES } from "../classifier/schemas";
 import type { Classification } from "../db/repositories/classifications";
 import { getEvent } from "../db/repositories/events";
 import { DeliveryError } from "../integrations/http";
 import { createIntegrationRegistry, type IntegrationRegistry } from "../integrations/registry";
+import {
+  createTimCli,
+  type TimCli,
+  type TimPlanAction,
+  type TimQueueMode,
+} from "../integrations/tim";
 import type { DeliveryEnvelope, OwnerDeliveryResult } from "../integrations/types";
 import { log as defaultLog } from "../logging";
 import { correlationIdForEvent } from "../logging";
@@ -27,6 +39,7 @@ import type { QueueHandler } from "../queue/worker";
 import { createDeliveryEnvelope } from "./envelope";
 import { recordResponse, type DeliveryResponse } from "./response";
 import { resolveRoute } from "./resolve";
+import { resolveProject as resolveCatalogProject } from "../projects/catalog";
 
 type RoutedDelivery = Delivery<DeliveryEnvelope, DeliveryResponse>;
 
@@ -44,7 +57,16 @@ export interface DeliveryOutcome {
   actionResult: ActionResult | null;
 }
 
-export type RoutingOutcome = DeliveryOutcome | { status: "unrouted"; actionResult: ActionResult };
+export interface TimPlanOutcome {
+  status: "tim_plan";
+  outcome: "succeeded" | "failed" | "needs_reconciliation";
+  actionResult: ActionResult;
+}
+
+export type RoutingOutcome =
+  | DeliveryOutcome
+  | { status: "unrouted"; actionResult: ActionResult }
+  | TimPlanOutcome;
 
 export interface RouteActionOptions {
   /** Set for an operator correction, so its delivery gets a new idempotency key. */
@@ -67,6 +89,7 @@ export interface RoutingService {
 export interface RoutingServiceOptions {
   db: Database;
   registry?: IntegrationRegistry;
+  timCli?: TimCli;
   maxAttempts?: number;
   backoff?: Backoff;
   now?: () => Date;
@@ -104,6 +127,68 @@ export function enqueueDeliveryRetry(
   });
 }
 
+function isTimPlanAction(action: Action): action is TimPlanAction {
+  return action.type === "tim.plan.create" || action.type === "tim.plan.create_and_execute";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasCleanCommandFailure(result: unknown): boolean {
+  return (
+    isRecord(result) && isRecord(result.commandOutcome) && result.commandOutcome.state === "failed"
+  );
+}
+
+function timActionKey(eventId: string, attemptId?: string) {
+  return JSON.stringify([eventId, attemptId ?? "initial"]);
+}
+
+function timQueueMode(actionType: TimPlanAction["type"]): TimQueueMode {
+  return actionType === "tim.plan.create_and_execute" ? "queued" : "default";
+}
+
+type RequestedTimAction =
+  | { action: TimPlanAction }
+  | { actionType: TimPlanAction["type"]; reason: string };
+
+function requestedTimAction(db: Database, event: IncomingEvent): RequestedTimAction | null {
+  const actionType =
+    TIM_PLAN_REQUEST_EVENT_TYPES[event.type as keyof typeof TIM_PLAN_REQUEST_EVENT_TYPES];
+  if (!actionType) return null;
+
+  const payload = event.payload;
+  if (!isRecord(payload))
+    return { actionType, reason: "Tim plan event payload must be an object." };
+  const extraFields = Object.keys(payload).filter(
+    (field) => !["project", "description"].includes(field)
+  );
+  if (extraFields.length) {
+    return {
+      actionType,
+      reason: "Tim plan event payload can contain only project and description.",
+    };
+  }
+  if (typeof payload.project !== "string" || !payload.project.trim()) {
+    return { actionType, reason: "A registered project name or alias is required." };
+  }
+  if (typeof payload.description !== "string" || !payload.description.trim()) {
+    return { actionType, reason: "A non-empty plan description is required." };
+  }
+  const project = resolveCatalogProject(db, payload.project);
+  if (!project)
+    return { actionType, reason: "The project is not registered in the project catalog." };
+  return {
+    action: {
+      type: actionType,
+      projectId: project.id,
+      projectName: project.name,
+      description: payload.description,
+    },
+  };
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -111,6 +196,7 @@ function errorText(error: unknown): string {
 export function createRoutingService({
   db,
   registry = createIntegrationRegistry(),
+  timCli = createTimCli(),
   maxAttempts = DEFAULT_DELIVERY_MAX_ATTEMPTS,
   backoff = exponentialBackoff,
   now = () => new Date(),
@@ -255,6 +341,166 @@ export function createRoutingService({
     return recordSuccess(delivery, attempts, result, performance.now() - startedAt);
   }
 
+  function invalidTimRequest(
+    event: IncomingEvent,
+    actionType: TimPlanAction["type"],
+    reason: string
+  ): TimPlanOutcome {
+    const idempotencyKey = timActionKey(event.id);
+    const existing = listActionResultsForEvent(db, event.id)
+      .reverse()
+      .find((entry) => isRecord(entry.result) && entry.result.idempotencyKey === idempotencyKey);
+    if (existing) {
+      return {
+        status: "tim_plan",
+        outcome: existing.status as TimPlanOutcome["outcome"],
+        actionResult: existing,
+      };
+    }
+
+    const actionResult = createActionResult(db, {
+      eventId: event.id,
+      actionType,
+      status: "failed",
+      result: {
+        idempotencyKey,
+        actionType,
+        projectId: null,
+        timPlanId: null,
+        queueMode: timQueueMode(actionType),
+        commandOutcome: { state: "not_started" },
+      },
+      error: reason,
+    });
+    return { status: "tim_plan", outcome: "failed", actionResult };
+  }
+
+  async function runTimPlan(
+    event: IncomingEvent,
+    action: TimPlanAction,
+    attemptId?: string
+  ): Promise<TimPlanOutcome> {
+    const project = resolveCatalogProject(db, action.projectId);
+    if (!project) {
+      return invalidTimRequest(
+        event,
+        action.type,
+        "The project is not enabled in the project catalog."
+      );
+    }
+
+    const idempotencyKey = timActionKey(event.id, attemptId);
+    const previous = db.transaction(() => {
+      const matching = listActionResultsForEvent(db, event.id)
+        .filter((entry) => isRecord(entry.result) && entry.result.idempotencyKey === idempotencyKey)
+        .at(-1);
+      if (matching) {
+        if (matching.status === "succeeded" || matching.status === "needs_reconciliation") {
+          return { kind: "recorded" as const, actionResult: matching };
+        }
+        if (matching.status === "running") {
+          const result = {
+            ...(isRecord(matching.result) ? matching.result : {}),
+            commandOutcome: {
+              state: "uncertain",
+              reason: "A prior Tim command has no recorded outcome.",
+            },
+          };
+          const updated = updateActionResult(db, matching.id, {
+            status: "needs_reconciliation",
+            result,
+            error: "A prior Tim command has no recorded outcome. Reconcile it before retrying.",
+          })!;
+          return { kind: "recorded" as const, actionResult: updated };
+        }
+        if (matching.status === "failed" && !hasCleanCommandFailure(matching.result)) {
+          return { kind: "recorded" as const, actionResult: matching };
+        }
+      }
+
+      const actionResult = createActionResult(db, {
+        eventId: event.id,
+        actionType: action.type,
+        status: "running",
+        result: {
+          idempotencyKey,
+          actionType: action.type,
+          action: {
+            projectId: action.projectId,
+            projectName: action.projectName,
+            description: action.description,
+          },
+          projectId: action.projectId,
+          projectName: action.projectName,
+          timPlanId: null,
+          queueMode: timQueueMode(action.type),
+          commandOutcome: { state: "started" },
+          ...(attemptId ? { attemptId } : {}),
+        },
+      });
+      return { kind: "started" as const, actionResult };
+    })();
+
+    if (previous.kind === "recorded") {
+      return {
+        status: "tim_plan",
+        outcome: previous.actionResult.status as TimPlanOutcome["outcome"],
+        actionResult: previous.actionResult,
+      };
+    }
+
+    const started = previous.actionResult;
+
+    let commandResult;
+    try {
+      commandResult = await timCli.createPlan(action, project.directory);
+    } catch (error) {
+      const message = errorText(error);
+      const actionResult = updateActionResult(db, started.id, {
+        status: "needs_reconciliation",
+        result: {
+          ...(isRecord(started.result) ? started.result : {}),
+          commandOutcome: { state: "uncertain", error: message },
+        },
+        error: "The Tim command ended without a recorded outcome. Reconcile it before retrying.",
+      })!;
+      return { status: "tim_plan", outcome: "needs_reconciliation", actionResult };
+    }
+
+    const finalResult = {
+      ...(isRecord(started.result) ? started.result : {}),
+      timPlanId: commandResult.planId,
+      queueMode: commandResult.queueMode,
+      commandOutcome: commandResult.commandOutcome,
+    };
+    if (commandResult.status === "needs_reconciliation") {
+      const actionResult = updateActionResult(db, started.id, {
+        status: "needs_reconciliation",
+        result: finalResult,
+        error:
+          "Tim returned successfully but Relay could not read the new plan ID. Reconcile it before retrying.",
+      })!;
+      return { status: "tim_plan", outcome: "needs_reconciliation", actionResult };
+    }
+    if (commandResult.status === "failed") {
+      const error = `Tim exited with code ${commandResult.commandOutcome.exitCode}.`;
+      updateActionResult(db, started.id, {
+        status: "failed",
+        result: finalResult,
+        error,
+      });
+      // A nonzero exit is a clean failure. The durable job retry may run `tim add` again.
+      throw new Error(error);
+    }
+
+    const actionResult = updateActionResult(db, started.id, {
+      status: "succeeded",
+      result: finalResult,
+      error: null,
+    })!;
+    return { status: "tim_plan", outcome: "succeeded", actionResult };
+  }
+
   async function deliver(
     event: IncomingEvent,
     actionType: string,
@@ -350,8 +596,15 @@ export function createRoutingService({
 
   return {
     routeAction: (event, action, options) =>
-      deliver(event, action.type, action, options?.attemptId),
-    routeEvent: (event) => deliver(event, event.type, event.payload),
+      isTimPlanAction(action)
+        ? runTimPlan(event, action, options?.attemptId)
+        : deliver(event, action.type, action, options?.attemptId),
+    routeEvent: async (event) => {
+      const request = requestedTimAction(db, event);
+      if (!request) return deliver(event, event.type, event.payload);
+      if ("reason" in request) return invalidTimRequest(event, request.actionType, request.reason);
+      return runTimPlan(event, request.action);
+    },
     runScheduledDelivery,
     retryDelivery,
   };

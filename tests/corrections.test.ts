@@ -22,6 +22,8 @@ import { enqueueJob, getJob } from "../src/lib/server/db/repositories/jobs";
 import { getEventDetail } from "../src/lib/server/event-detail";
 import { createIntegrationRegistry } from "../src/lib/server/integrations/registry";
 import type { HttpRequest } from "../src/lib/server/integrations/types";
+import { createTimCli } from "../src/lib/server/integrations/tim";
+import { createProject } from "../src/lib/server/db/repositories/projects";
 import { createLogger } from "../src/lib/server/logging";
 import { createClassificationWorker } from "../src/lib/server/queue/workers";
 import { createIdempotencyKey } from "../src/lib/server/routing/envelope";
@@ -37,6 +39,7 @@ let current: Date;
 let mail: Integration;
 let mailRequests: HttpRequest[];
 let omniRequests: HttpRequest[];
+let timCalls: Array<{ command: string; args: string[]; cwd: string }>;
 let routing: RoutingService;
 let event: IncomingEvent;
 let classificationWorker: ReturnType<typeof createClassificationWorker>;
@@ -49,6 +52,15 @@ beforeEach(async () => {
   current = new Date("2026-09-26T12:00:00.000Z");
   mailRequests = [];
   omniRequests = [];
+  timCalls = [];
+  createProject(db, {
+    id: "relay",
+    name: "Relay",
+    path: "/work/relay",
+    defaultBranch: "main",
+    executor: "codex",
+    config: { aliases: ["relay-short"] },
+  });
 
   mail = createIntegration(db, {
     name: "Mail",
@@ -75,6 +87,12 @@ beforeEach(async () => {
       omniAppTransport: async (request) => {
         omniRequests.push(request);
         return { status: 201, body: { id: `note-${omniRequests.length}` } };
+      },
+    }),
+    timCli: createTimCli({
+      process: async (command, args, { cwd }) => {
+        timCalls.push({ command, args, cwd });
+        return { exitCode: 0, stdout: "Created plan stub: plan 71", stderr: "" };
       },
     }),
     log: createLogger(() => {}),
@@ -211,6 +229,78 @@ describe("corrections", () => {
     ]);
     const corrections = getEventDetail(db, event.id)!.corrections;
     expect(corrections[1].correctsClassificationId).toBe(corrections[0].classificationId);
+  });
+
+  test("corrects to a Tim plan action and preserves its description", async () => {
+    const description = "--help me\nKeep this text.";
+    const result = await correctClassification(
+      db,
+      routing,
+      event.id,
+      {
+        attemptId: "tim-correction",
+        actionType: "tim.plan.create_and_execute",
+        fields: { project: "relay-short", description },
+      },
+      "operator"
+    );
+
+    expect(result).toMatchObject({
+      attempt: { status: "succeeded" },
+      classification: {
+        actionType: "tim.plan.create_and_execute",
+        result: { action: { projectId: "relay", projectName: "Relay", description } },
+      },
+    });
+    expect(timCalls).toEqual([
+      {
+        command: "tim",
+        args: [
+          "add",
+          "--simple",
+          "--status",
+          "queued",
+          `--details=${description}`,
+          "--",
+          description,
+        ],
+        cwd: "/work/relay",
+      },
+    ]);
+    expect(getEventDetail(db, event.id)!.actionResults.at(-1)).toMatchObject({
+      actionType: "tim.plan.create_and_execute",
+      status: "succeeded",
+      result: { timPlanId: "71", queueMode: "queued" },
+    });
+  });
+
+  test("rejects Tim corrections with an unknown project or empty description", async () => {
+    const makeTimCorrection = (attemptId: string, project: string, description: string) =>
+      correctClassification(
+        db,
+        routing,
+        event.id,
+        {
+          attemptId,
+          actionType: "tim.plan.create",
+          fields: { project, description },
+        },
+        "operator"
+      );
+
+    await expect(
+      makeTimCorrection("unknown-project", "missing", "Create a plan.")
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Enter a registered project name or alias.",
+    });
+    await expect(makeTimCorrection("empty-description", "relay-short", "  ")).rejects.toMatchObject(
+      {
+        status: 400,
+        message: "Enter a value for: Plan description.",
+      }
+    );
+    expect(timCalls).toEqual([]);
   });
 
   test("reject invalid replacement fields without recording or dispatching", async () => {

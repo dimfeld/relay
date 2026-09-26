@@ -244,7 +244,11 @@
       <article class="record">
         <div class="record-heading">
           <h3>{result.actionType}</h3>
-          <span class="status-badge" class:problem={result.status === "failed" || result.status === "unrouted"}>
+          <span class="status-badge" class:problem={[
+            "failed",
+            "unrouted",
+            "needs_reconciliation",
+          ].includes(result.status)}>
             {result.status.replaceAll("_", " ")}
           </span>
         </div>

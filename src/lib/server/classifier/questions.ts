@@ -14,7 +14,12 @@ const ACTION_OPTIONS = {
     "Information, an idea, an observation, or text with unclear intent to save as a new note. If it is unclear which action the speaker wants, assume they want a note.",
   note_continuation: "More content for a note from the recent context, such as 'also...'.",
   coding_request: "An instruction for a coding agent to change a software project.",
-  unknown: "The capture has no usable content to classify, such as silence or unintelligible speech.",
+  tim_plan_create:
+    "Create a Tim plan in a registered project. Tim will prepare the plan, but do not queue it for execution.",
+  tim_plan_create_and_execute:
+    "Create a Tim plan in a registered project and queue it for Tim's own execution runner.",
+  unknown:
+    "The capture has no usable content to classify, such as silence or unintelligible speech.",
 } as const;
 
 const ACTION_TYPE_BY_LABEL: Record<keyof typeof ACTION_OPTIONS, ActionType> = {
@@ -23,6 +28,8 @@ const ACTION_TYPE_BY_LABEL: Record<keyof typeof ACTION_OPTIONS, ActionType> = {
   new_note: "note.create",
   note_continuation: "note.append",
   coding_request: "command.execute",
+  tim_plan_create: "tim.plan.create",
+  tim_plan_create_and_execute: "tim.plan.create_and_execute",
   unknown: "unknown",
 };
 
