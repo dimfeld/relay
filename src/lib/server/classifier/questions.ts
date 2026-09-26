@@ -10,10 +10,11 @@ import type { ContextItem, ExecutorProvider, JevRequest } from "./types";
 const ACTION_OPTIONS = {
   task: "A to-do item the speaker wants to track and complete.",
   reminder: "A request to be reminded about something at a specific time.",
-  new_note: "Information, an idea, or an observation to save as a new note.",
+  new_note:
+    "Information, an idea, an observation, or text with unclear intent to save as a new note. If it is unclear which action the speaker wants, assume they want a note.",
   note_continuation: "More content for a note from the recent context, such as 'also...'.",
   coding_request: "An instruction for a coding agent to change a software project.",
-  unknown: "None of the above, unclear, or not addressed to the assistant.",
+  unknown: "The capture has no usable content to classify, such as silence or unintelligible speech.",
 } as const;
 
 const ACTION_TYPE_BY_LABEL: Record<keyof typeof ACTION_OPTIONS, ActionType> = {
