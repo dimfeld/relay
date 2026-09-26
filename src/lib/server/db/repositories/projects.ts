@@ -127,3 +127,16 @@ export function listProjects<TConfig = unknown>(db: Database): Project<TConfig>[
     .all()
     .map(mapProject<TConfig>);
 }
+
+/** Disable stored projects that are no longer in the configured catalog. */
+export function setProjectsEnabledExcept(db: Database, enabledIds: string[]): void {
+  if (enabledIds.length === 0) {
+    db.query("UPDATE projects SET enabled = 0 WHERE enabled = 1").run();
+    return;
+  }
+
+  const placeholders = enabledIds.map(() => "?").join(", ");
+  db.query(`UPDATE projects SET enabled = 0 WHERE enabled = 1 AND id NOT IN (${placeholders})`).run(
+    ...enabledIds
+  );
+}

@@ -12,11 +12,15 @@ import {
   listExecutionLogs,
   listRecentExecutions,
 } from "../db/repositories/executions";
-import { getProject, listProjects } from "../db/repositories/projects";
+import {
+  getProjectCatalogEntry,
+  listProjectCatalog,
+  type ProjectCatalogEntry,
+} from "../projects/catalog";
 import { authorize, errorResponse } from "./authorize";
 
 /** Load the response data. Return null when the requested record does not exist. */
-export type AdminLoader = (db: Database, limit: number | undefined) => unknown;
+export type AdminLoader<T = unknown> = (db: Database, limit: number | undefined) => T | null;
 
 /** Handle an admin GET request that needs the admin:read capability. */
 export function handleAdminRead(
@@ -77,11 +81,13 @@ export function loadExecution(id: string): AdminLoader {
   };
 }
 
-export const loadProjects: AdminLoader = (db) => ({ projects: listProjects(db) });
+export const loadProjects: AdminLoader<{ projects: ProjectCatalogEntry[] }> = (db) => ({
+  projects: listProjectCatalog(db),
+});
 
-export function loadProject(id: string): AdminLoader {
+export function loadProject(id: string): AdminLoader<{ project: ProjectCatalogEntry } | null> {
   return (db) => {
-    const project = getProject(db, id);
+    const project = getProjectCatalogEntry(db, id);
     return project && { project };
   };
 }
