@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { AdminActionError } from "./admin-error";
 import { nowIso } from "./db/json";
 import { getDelivery, updateDelivery, type Delivery } from "./db/repositories/deliveries";
 import { requeueJob, type Job } from "./db/repositories/jobs";
@@ -28,16 +29,6 @@ export interface FailedDelivery {
 export interface FailureList {
   classifications: FailedClassification[];
   deliveries: FailedDelivery[];
-}
-
-/** A retry request that cannot run. The status is the matching HTTP status. */
-export class RetryError extends Error {
-  constructor(
-    readonly status: 404 | 409,
-    message: string
-  ) {
-    super(message);
-  }
 }
 
 /**
@@ -83,11 +74,11 @@ export function retryClassification(db: Database, eventId: string, at = nowIso()
        ORDER BY created_at DESC, id DESC LIMIT 1`
     )
     .get(eventId);
-  if (!job) throw new RetryError(404, `Event ${eventId} has no classification job.`);
+  if (!job) throw new AdminActionError(404, `Event ${eventId} has no classification job.`);
 
   const requeued = requeueJob(db, job.id, at);
   if (!requeued) {
-    throw new RetryError(409, `The classification of event ${eventId} is ${job.status}.`);
+    throw new AdminActionError(409, `The classification of event ${eventId} is ${job.status}.`);
   }
   return requeued;
 }
@@ -98,9 +89,9 @@ export function retryClassification(db: Database, eventId: string, at = nowIso()
  */
 export function retryDelivery(db: Database, deliveryId: string, at = nowIso()): Delivery {
   const delivery = getDelivery(db, deliveryId);
-  if (!delivery) throw new RetryError(404, `Delivery ${deliveryId} does not exist.`);
+  if (!delivery) throw new AdminActionError(404, `Delivery ${deliveryId} does not exist.`);
   if (delivery.status !== "dead") {
-    throw new RetryError(409, `Delivery ${deliveryId} is ${delivery.status}.`);
+    throw new AdminActionError(409, `Delivery ${deliveryId} is ${delivery.status}.`);
   }
 
   return db.transaction(() => {

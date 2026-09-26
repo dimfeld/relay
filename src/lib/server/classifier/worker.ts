@@ -16,6 +16,8 @@ import type { ContextItem, JevClassifier, LunaExtractor } from "./types";
 
 export interface ClassificationJobPayload {
   eventId: string;
+  /** Set when an operator asks for the event to be classified again. */
+  reclassification?: { requestedBy: string };
 }
 
 export interface ClassificationHandlerOptions {
@@ -63,11 +65,16 @@ export function createClassificationHandler({
     const event = getEvent(db, job.payload.eventId);
     if (!event) throw new Error(`Event ${job.payload.eventId} does not exist.`);
 
+    const jobDetails = {
+      jobId: job.id,
+      jobAttempt: job.attempts,
+      ...(job.payload.reclassification && { reclassification: job.payload.reclassification }),
+    };
     const attempt = createAttempt(db, {
       eventId: event.id,
       stage: "classification",
       status: "running",
-      details: { jobId: job.id, jobAttempt: job.attempts },
+      details: jobDetails,
     });
     const finishAttempt = (status: string, error: string | null, details: unknown) =>
       updateAttempt(db, attempt.id, { status, error, finishedAt: nowIso(), details });
@@ -95,14 +102,13 @@ export function createClassificationHandler({
       );
     } catch (error) {
       finishAttempt("failed", error instanceof Error ? error.message : String(error), {
-        jobId: job.id,
-        jobAttempt: job.attempts,
+        ...jobDetails,
         selectedContextIds,
       });
       throw error;
     }
 
-    const details = { jobId: job.id, jobAttempt: job.attempts, ...result.record };
+    const details = { ...jobDetails, ...result.record };
 
     if (result.status === "failed") {
       // The job retries with a new attempt; after the last job attempt the event needs review.

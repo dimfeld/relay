@@ -83,7 +83,7 @@ export function listActionResultsForEvent<TResult = unknown>(
 ): ActionResult<TResult>[] {
   return db
     .query<ActionResultRow, [string]>(
-      "SELECT * FROM action_results WHERE event_id = ? ORDER BY created_at, id"
+      "SELECT * FROM action_results WHERE event_id = ? ORDER BY created_at, rowid"
     )
     .all(eventId)
     .map(mapActionResult<TResult>);

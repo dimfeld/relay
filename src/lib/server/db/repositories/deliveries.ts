@@ -127,7 +127,9 @@ export function listRecentDeliveries(db: Database, limit?: number): Delivery[] {
 
 export function listDeliveriesForEvent(db: Database, eventId: string): Delivery[] {
   return db
-    .query<DeliveryRow, [string]>("SELECT * FROM deliveries WHERE event_id = ? ORDER BY created_at")
+    .query<DeliveryRow, [string]>(
+      "SELECT * FROM deliveries WHERE event_id = ? ORDER BY created_at, rowid"
+    )
     .all(eventId)
     .map(mapDelivery);
 }

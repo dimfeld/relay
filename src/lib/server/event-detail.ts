@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { CORRECTION_STAGE, type CorrectionDetails } from "./corrections";
 import { listActionResultsForEvent, type ActionResult } from "./db/repositories/actionResults";
 import { listAttemptsForEvent, type ProcessingAttempt } from "./db/repositories/attempts";
 import {
@@ -40,6 +41,18 @@ export interface EventRouteRecord {
 export interface EventDeliveryRecord {
   delivery: Delivery;
   downstreamId: string | null;
+  /** The operator correction that dispatched this delivery, if any. */
+  correctionAttemptId: string | null;
+}
+
+/** An operator correction: the classification it replaced, the new one, and its delivery. */
+export interface EventCorrectionRecord extends CorrectionDetails {
+  attemptId: string;
+  status: string;
+  error: string | null;
+  correctedAt: string;
+  classificationId: string | null;
+  deliveryId: string | null;
 }
 
 export interface EventDetail {
@@ -55,6 +68,7 @@ export interface EventDetail {
   };
   contexts: EventContextRecord[];
   classifications: Classification[];
+  corrections: EventCorrectionRecord[];
   attempts: ProcessingAttempt[];
   actionResults: ActionResult[];
   routes: EventRouteRecord[];
@@ -99,6 +113,20 @@ function contextFromAttempt(db: Database, attempt: ProcessingAttempt): EventCont
     });
   }
   return { attemptId: attempt.id, items, unresolvedIds };
+}
+
+function correctionFromAttempt(attempt: ProcessingAttempt): EventCorrectionRecord {
+  const details = record(attempt.details);
+  return {
+    attemptId: attempt.id,
+    status: attempt.status,
+    error: attempt.error,
+    correctedAt: attempt.startedAt,
+    correctedBy: stringField(details, "correctedBy") ?? "unknown operator",
+    correctsClassificationId: stringField(details, "correctsClassificationId"),
+    classificationId: stringField(details, "classificationId"),
+    deliveryId: stringField(details, "deliveryId"),
+  };
 }
 
 function downstreamId(delivery: Delivery, actionResults: ActionResult[]): string | null {
@@ -165,7 +193,7 @@ function deriveFailedStep(
   return null;
 }
 
-/** Load all recorded event history for the read-only admin detail page. */
+/** Load all recorded event history for the admin detail page. */
 export function getEventDetail(db: Database, eventId: string): EventDetail | null {
   const event = getEvent(db, eventId);
   if (!event) return null;
@@ -174,6 +202,9 @@ export function getEventDetail(db: Database, eventId: string): EventDetail | nul
   const classifications = listClassificationsForEvent(db, eventId);
   const actionResults = listActionResultsForEvent(db, eventId);
   const deliveries = listDeliveriesForEvent(db, eventId);
+  const corrections = attempts
+    .filter((attempt) => attempt.stage === CORRECTION_STAGE)
+    .map(correctionFromAttempt);
 
   return {
     event,
@@ -191,6 +222,7 @@ export function getEventDetail(db: Database, eventId: string): EventDetail | nul
       .map((attempt) => contextFromAttempt(db, attempt))
       .filter((context): context is EventContextRecord => context !== null),
     classifications,
+    corrections,
     attempts,
     actionResults,
     routes: deliveries.map((delivery) => ({
@@ -201,6 +233,8 @@ export function getEventDetail(db: Database, eventId: string): EventDetail | nul
     deliveries: deliveries.map((delivery) => ({
       delivery,
       downstreamId: downstreamId(delivery, actionResults),
+      correctionAttemptId:
+        corrections.find((correction) => correction.deliveryId === delivery.id)?.attemptId ?? null,
     })),
     failedStep: deriveFailedStep(classifications, attempts, actionResults, deliveries),
   };

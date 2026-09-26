@@ -79,7 +79,7 @@ export function getAttempt(db: Database, id: string): ProcessingAttempt | null {
 export function listAttemptsForEvent(db: Database, eventId: string): ProcessingAttempt[] {
   return db
     .query<AttemptRow, [string]>(
-      "SELECT * FROM processing_attempts WHERE event_id = ? ORDER BY started_at"
+      "SELECT * FROM processing_attempts WHERE event_id = ? ORDER BY started_at, rowid"
     )
     .all(eventId)
     .map(mapAttempt);

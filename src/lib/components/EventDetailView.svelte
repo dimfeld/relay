@@ -1,10 +1,83 @@
 <script lang="ts">
+  import { isHttpError } from "@sveltejs/kit";
+  import {
+    CORRECTION_ACTION_TYPES,
+    CORRECTION_FIELDS,
+    type CorrectionActionType,
+    type CorrectionInput,
+  } from "../corrections";
+  import type { ProcessingAttempt } from "../server/db/repositories/attempts";
   import type { EventDetail } from "../server/event-detail";
 
-  let { detail }: { detail: EventDetail } = $props();
+  interface Props {
+    detail: EventDetail;
+    correct: (correction: CorrectionInput) => Promise<unknown>;
+    reclassify: () => Promise<unknown>;
+  }
+
+  let { detail, correct, reclassify }: Props = $props();
+
+  let actionType = $state<CorrectionActionType>("task.create");
+  let values = $state<Record<string, string>>({});
+  // One ID per correction. A repeated submission of the same form does not dispatch twice.
+  let attemptId = $state(crypto.randomUUID());
+  let pending = $state<"correct" | "reclassify" | null>(null);
+  let actionError = $state<string | null>(null);
+  let notice = $state<string | null>(null);
+
+  const fields = $derived(CORRECTION_FIELDS[actionType]);
 
   function pretty(value: unknown): string {
     return JSON.stringify(value, null, 2);
+  }
+
+  function correctionFor(classificationId: string) {
+    return detail.corrections.find((correction) => correction.classificationId === classificationId);
+  }
+
+  function replacedBy(classificationId: string) {
+    return detail.corrections.find(
+      (correction) => correction.correctsClassificationId === classificationId
+    );
+  }
+
+  function reclassifiedBy(attempt: ProcessingAttempt): string | null {
+    const details = attempt.details as { reclassification?: { requestedBy?: string } } | null;
+    return details?.reclassification?.requestedBy ?? null;
+  }
+
+  function errorMessage(error: unknown): string {
+    if (isHttpError(error)) return error.body.message;
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  async function run(kind: "correct" | "reclassify", action: () => Promise<string>) {
+    pending = kind;
+    actionError = null;
+    notice = null;
+    try {
+      notice = await action();
+    } catch (error) {
+      actionError = errorMessage(error);
+    } finally {
+      pending = null;
+    }
+  }
+
+  function submitCorrection(event: SubmitEvent) {
+    event.preventDefault();
+    return run("correct", async () => {
+      await correct({ attemptId, actionType, fields: values });
+      attemptId = crypto.randomUUID();
+      return `Correction to ${actionType} saved and dispatched.`;
+    });
+  }
+
+  function startReclassify() {
+    return run("reclassify", async () => {
+      await reclassify();
+      return "The event is queued for classification again.";
+    });
   }
 </script>
 
@@ -22,6 +95,44 @@
       <p>{detail.failedStep.reason}</p>
     </aside>
   {/if}
+
+  <section aria-labelledby="actions-title">
+    <h2 id="actions-title">Correct or reclassify</h2>
+    <p>
+      A correction or reclassification adds a new processing attempt. Earlier classifications stay
+      in the history.
+    </p>
+    {#if actionError}
+      <p class="action-error" role="alert">{actionError}</p>
+    {/if}
+    {#if notice}
+      <p class="notice" role="status">{notice}</p>
+    {/if}
+    <form class="correction-form" onsubmit={submitCorrection}>
+      <label>
+        <span>Replacement action type</span>
+        <select bind:value={actionType}>
+          {#each CORRECTION_ACTION_TYPES as type (type)}
+            <option value={type}>{type}</option>
+          {/each}
+        </select>
+      </label>
+      {#each fields as field (field.name)}
+        <label>
+          <span>{field.label}{field.required ? " (required)" : ""}</span>
+          <input name={field.name} bind:value={values[field.name]} />
+        </label>
+      {/each}
+      <div class="form-actions">
+        <button type="submit" disabled={pending !== null}>
+          {pending === "correct" ? "Dispatching…" : "Save correction and dispatch"}
+        </button>
+        <button type="button" disabled={pending !== null} onclick={startReclassify}>
+          {pending === "reclassify" ? "Queueing…" : "Reclassify"}
+        </button>
+      </div>
+    </form>
+  </section>
 
   <section aria-labelledby="raw-input-title">
     <h2 id="raw-input-title">Raw input</h2>
@@ -70,6 +181,20 @@
         </div>
         <p>{classification.provider} · {classification.model} · {classification.createdAt}</p>
         <small>Classification {classification.id}</small>
+        {#if correctionFor(classification.id)}
+          <p class="history-note">
+            Operator correction by {correctionFor(classification.id)?.correctedBy}
+            {#if correctionFor(classification.id)?.correctsClassificationId}
+              · replaces classification {correctionFor(classification.id)?.correctsClassificationId}
+            {/if}
+          </p>
+        {/if}
+        {#if replacedBy(classification.id)}
+          <p class="history-note">
+            Replaced by operator correction {replacedBy(classification.id)?.attemptId}. The original
+            result is kept below.
+          </p>
+        {/if}
         {#if classification.confidence !== null}
           <p>{Math.round(classification.confidence * 100)}% confidence</p>
         {/if}
@@ -88,12 +213,17 @@
     {#each detail.attempts as attempt (attempt.id)}
       <article class="record">
         <div class="record-heading">
-          <h3>{attempt.stage}</h3>
-          <span class="status-badge" class:problem={attempt.status === "failed" || attempt.status === "needs_review"}>
+          <h3>
+            {attempt.stage}{reclassifiedBy(attempt) ? " · reclassification" : ""}
+          </h3>
+          <span class="status-badge" class:problem={["failed", "dead", "needs_review"].includes(attempt.status)}>
             {attempt.status.replaceAll("_", " ")}
           </span>
         </div>
         <small>Attempt {attempt.id}</small>
+        {#if reclassifiedBy(attempt)}
+          <p class="history-note">Reclassification requested by {reclassifiedBy(attempt)}</p>
+        {/if}
         <p>{attempt.startedAt}{attempt.finishedAt ? ` – ${attempt.finishedAt}` : ""}</p>
         {#if attempt.error}
           <p class="error-text">{attempt.error}</p>
@@ -162,6 +292,9 @@
           </span>
         </div>
         <p>{record.delivery.attempts} attempts · {record.delivery.updatedAt}</p>
+        {#if record.correctionAttemptId}
+          <p class="history-note">Dispatched by operator correction {record.correctionAttemptId}</p>
+        {/if}
         {#if record.downstreamId}
           <p>Downstream ID: <strong>{record.downstreamId}</strong></p>
         {/if}
@@ -324,6 +457,72 @@
 
   .error-text {
     color: #b42318;
+  }
+
+  .history-note {
+    margin: 8px 0 0;
+    color: #3538cd;
+    font-weight: 600;
+  }
+
+  .correction-form {
+    display: grid;
+    gap: 12px;
+    max-width: 560px;
+  }
+
+  .correction-form label {
+    display: grid;
+    gap: 4px;
+    font-size: 14px;
+  }
+
+  .correction-form input,
+  .correction-form select {
+    min-height: 34px;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    padding: 0 10px;
+    font: inherit;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    min-height: 34px;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    background: #fff;
+    color: #1d2939;
+    cursor: pointer;
+    font: inherit;
+    padding: 0 12px;
+  }
+
+  button:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .action-error,
+  .notice {
+    padding: 12px 16px;
+    border-radius: 8px;
+  }
+
+  .action-error {
+    border: 1px solid #fda29b;
+    background: #fef3f2;
+    color: #b42318;
+  }
+
+  .notice {
+    border: 1px solid #a6f4c5;
+    background: #ecfdf3;
+    color: #067647;
   }
 
   @media (max-width: 700px) {

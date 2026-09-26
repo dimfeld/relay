@@ -194,16 +194,16 @@ Objective: Inspect classification failures and failed integration deliveries.
 ## Phase 16 — Reclassification and Corrections
 Objective: Allow the system to improve operationally without destroying historical evidence.
 ### Tasks
-- ☐ Add a correction action from event detail.
-- ☐ Allow selecting a replacement action type and editing structured fields.
-- ☐ Preserve the original classification record.
-- ☐ Create a new processing attempt for corrected dispatch.
-- ☐ Add Reclassify action that invokes the current classifier again.
-- ☐ Prevent accidental duplicate side effects by using a new attempt ID plus stable source history.
+- ☑ Add a correction action from event detail.
+- ☑ Allow selecting a replacement action type and editing structured fields.
+- ☑ Preserve the original classification record.
+- ☑ Create a new processing attempt for corrected dispatch.
+- ☑ Add Reclassify action that invokes the current classifier again.
+- ☑ Prevent accidental duplicate side effects by using a new attempt ID plus stable source history.
 ### Done when
-- ☐ Operator can correct Note → Task and dispatch it to Mail.
-- ☐ Original model classification remains visible.
-- ☐ Audit history clearly shows correction and resulting action.
+- ☐ Operator can correct Note → Task and dispatch it to Mail. (Relay side proven with a fake Mail transport; live proof needs Mail's task receiver, see docs/external-app-changes.md.)
+- ☑ Original model classification remains visible.
+- ☑ Audit history clearly shows correction and resulting action.
 ## Phase 17 — Reminder Delivery Ownership
 Objective: Ensure reminders are scheduled and surfaced by Mail rather than by Relay.
 ### Tasks

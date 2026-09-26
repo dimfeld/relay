@@ -1,11 +1,10 @@
 import type { Database } from "bun:sqlite";
+import { CLASSIFICATION_JOB_MAX_ATTEMPTS } from "../config";
 import { nowIso } from "../db/json";
 import { createAttempt } from "../db/repositories/attempts";
 import { createEvent, findEventBySource } from "../db/repositories/events";
 import { enqueueJob } from "../db/repositories/jobs";
 import { log } from "../logging";
-
-const CLASSIFICATION_JOB_MAX_ATTEMPTS = 5;
 
 interface PebbleCapture {
   client: string;

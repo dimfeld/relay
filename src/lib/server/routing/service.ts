@@ -43,8 +43,17 @@ export interface DeliveryOutcome {
 
 export type RoutingOutcome = DeliveryOutcome | { status: "unrouted"; actionResult: ActionResult };
 
+export interface RouteActionOptions {
+  /** Set for an operator correction, so its delivery gets a new idempotency key. */
+  attemptId?: string;
+}
+
 export interface RoutingService {
-  routeAction(event: IncomingEvent, action: Action): Promise<RoutingOutcome>;
+  routeAction(
+    event: IncomingEvent,
+    action: Action,
+    options?: RouteActionOptions
+  ): Promise<RoutingOutcome>;
   routeEvent(event: IncomingEvent): Promise<RoutingOutcome>;
   /** Send a failed delivery again when its retry is due. Returns null when nothing is due. */
   runScheduledDelivery(deliveryId: string): Promise<DeliveryOutcome | null>;
@@ -218,7 +227,8 @@ export function createRoutingService({
   async function deliver(
     event: IncomingEvent,
     actionType: string,
-    payload: unknown
+    payload: unknown,
+    attemptId?: string
   ): Promise<RoutingOutcome> {
     const resolved = resolveRoute(db, { eventType: event.type, actionType });
     if (!resolved) {
@@ -233,7 +243,13 @@ export function createRoutingService({
       return { status: "unrouted", actionResult };
     }
 
-    const envelope = createDeliveryEnvelope(event, actionType, resolved.integration.id, payload);
+    const envelope = createDeliveryEnvelope(
+      event,
+      actionType,
+      resolved.integration.id,
+      payload,
+      attemptId
+    );
     const existing = findDeliveryByIdempotencyKey<DeliveryEnvelope, DeliveryResponse>(
       db,
       envelope.idempotencyKey
@@ -278,7 +294,8 @@ export function createRoutingService({
   }
 
   return {
-    routeAction: (event, action) => deliver(event, action.type, action),
+    routeAction: (event, action, options) =>
+      deliver(event, action.type, action, options?.attemptId),
     routeEvent: (event) => deliver(event, event.type, event.payload),
     runScheduledDelivery,
     retryDelivery,

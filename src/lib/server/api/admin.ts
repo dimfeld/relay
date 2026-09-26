@@ -1,4 +1,6 @@
 import type { Database } from "bun:sqlite";
+import { AdminActionError } from "../admin-error";
+import type { ServiceIdentity } from "../auth";
 import type { ServerContext } from "../context";
 import { listAttemptsForEvent, listRecentAttempts } from "../db/repositories/attempts";
 import {
@@ -12,7 +14,7 @@ import {
   listExecutionLogs,
   listRecentExecutions,
 } from "../db/repositories/executions";
-import { listFailures, RetryError } from "../failures";
+import { listFailures } from "../failures";
 import {
   getProjectCatalogEntry,
   listProjectCatalog,
@@ -42,19 +44,22 @@ export function handleAdminRead(
   return data === null ? errorResponse(404, "Not found") : Response.json(data);
 }
 
-/** Handle an admin POST request that retries a failed item and needs the admin:retry capability. */
-export function handleAdminRetry(
+/**
+ * Handle an admin POST request that changes how an event is processed, such as a retry,
+ * correction, or reclassification. It needs the admin:retry capability.
+ */
+export async function handleAdminAction(
   context: ServerContext,
   request: Request,
-  retry: (db: Database) => unknown
-): Response {
+  run: (db: Database, identity: ServiceIdentity) => unknown
+): Promise<Response> {
   const identity = authorize(context, request, "admin:retry");
   if (identity instanceof Response) return identity;
 
   try {
-    return Response.json(retry(context.db), { status: 202 });
+    return Response.json(await run(context.db, identity), { status: 202 });
   } catch (error) {
-    if (error instanceof RetryError) return errorResponse(error.status, error.message);
+    if (error instanceof AdminActionError) return errorResponse(error.status, error.message);
     throw error;
   }
 }

@@ -84,7 +84,7 @@ export function getClassification(db: Database, id: string): Classification | nu
 export function listClassificationsForEvent(db: Database, eventId: string): Classification[] {
   return db
     .query<ClassificationRow, [string]>(
-      "SELECT * FROM classifications WHERE event_id = ? ORDER BY created_at, id"
+      "SELECT * FROM classifications WHERE event_id = ? ORDER BY created_at, rowid"
     )
     .all(eventId)
     .map(mapClassification);

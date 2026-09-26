@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Database } from "bun:sqlite";
-import { handleAdminRead, handleAdminRetry, loadFailures } from "../src/lib/server/api/admin";
+import { AdminActionError } from "../src/lib/server/admin-error";
+import { handleAdminAction, handleAdminRead, loadFailures } from "../src/lib/server/api/admin";
 import { ProviderError } from "../src/lib/server/classifier/types";
 import { createClassificationHandler } from "../src/lib/server/classifier/worker";
 import { loadConfig } from "../src/lib/server/config";
@@ -13,12 +14,7 @@ import {
   createIntegration,
 } from "../src/lib/server/db/repositories/integrations";
 import { enqueueJob, getJob } from "../src/lib/server/db/repositories/jobs";
-import {
-  listFailures,
-  retryClassification,
-  retryDelivery,
-  RetryError,
-} from "../src/lib/server/failures";
+import { listFailures, retryClassification, retryDelivery } from "../src/lib/server/failures";
 import { createIntegrationRegistry } from "../src/lib/server/integrations/registry";
 import { createLogger } from "../src/lib/server/logging";
 import { createClassificationWorker, createDeliveryWorker } from "../src/lib/server/queue/workers";
@@ -184,16 +180,16 @@ describe("failures", () => {
     expect(getJob(db, job.id)?.status).toBe("succeeded");
 
     expect(() => retryClassification(db, event.id)).toThrow(
-      new RetryError(409, `The classification of event ${event.id} is succeeded.`)
+      new AdminActionError(409, `The classification of event ${event.id} is succeeded.`)
     );
-    expect(() => retryClassification(db, "missing")).toThrow(RetryError);
+    expect(() => retryClassification(db, "missing")).toThrow(AdminActionError);
 
     const { delivery } = await failDelivery();
     retryDelivery(db, delivery.id, current.toISOString());
     expect(() => retryDelivery(db, delivery.id)).toThrow(
-      new RetryError(409, `Delivery ${delivery.id} is failed.`)
+      new AdminActionError(409, `Delivery ${delivery.id} is failed.`)
     );
-    expect(() => retryDelivery(db, "missing")).toThrow(RetryError);
+    expect(() => retryDelivery(db, "missing")).toThrow(AdminActionError);
   });
 });
 
@@ -240,28 +236,28 @@ describe("failure APIs", () => {
     const { event } = await failClassification();
     const { delivery } = await failDelivery();
     const retry = (token: string | null, run: (db: Database) => unknown) =>
-      handleAdminRetry(context(), request(token, "POST"), run);
+      handleAdminAction(context(), request(token, "POST"), run);
     const retryEvent = (db: Database) => ({ job: retryClassification(db, event.id) });
 
-    expect(retry(null, retryEvent).status).toBe(401);
-    expect(retry("reader-token", retryEvent).status).toBe(403);
+    expect((await retry(null, retryEvent)).status).toBe(401);
+    expect((await retry("reader-token", retryEvent)).status).toBe(403);
     expect(getJob(db, listFailures(db).classifications[0].jobId)?.status).toBe("dead");
 
-    const accepted = retry("operator-token", retryEvent);
+    const accepted = await retry("operator-token", retryEvent);
     expect(accepted.status).toBe(202);
     expect(await accepted.json()).toMatchObject({ job: { status: "pending", attempts: 0 } });
 
-    const conflict = retry("operator-token", retryEvent);
+    const conflict = await retry("operator-token", retryEvent);
     expect(conflict.status).toBe(409);
     expect(await conflict.json()).toEqual({
       error: `The classification of event ${event.id} is pending.`,
     });
 
-    const deliveryResponse = retry("operator-token", (db) => ({
+    const deliveryResponse = await retry("operator-token", (db) => ({
       delivery: retryDelivery(db, delivery.id),
     }));
     expect(deliveryResponse.status).toBe(202);
     expect(await deliveryResponse.json()).toMatchObject({ delivery: { status: "failed" } });
-    expect(retry("operator-token", (db) => retryDelivery(db, "missing")).status).toBe(404);
+    expect((await retry("operator-token", (db) => retryDelivery(db, "missing"))).status).toBe(404);
   });
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 const port = z.coerce.number().int().min(1).max(65535);
 const nonEmpty = z.string().trim().min(1);
 
+export const CLASSIFICATION_JOB_MAX_ATTEMPTS = 5;
 export const DEFAULT_CONTEXT_LIMIT = 10;
 export const DEFAULT_CONTEXT_MAX_AGE_MINUTES = 15;
 /**
