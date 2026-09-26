@@ -20,6 +20,7 @@ describe("loadConfig", () => {
     expect(config.PEBBLE_MAX_BODY_BYTES).toBe(65_536);
     expect(config.PEBBLE_RATE_LIMIT_PER_MINUTE).toBe(30);
     expect(config.INTERNAL_SERVICE_CREDENTIALS).toEqual({ mail: "token" });
+    expect(config.DELIVERY_MAX_ATTEMPTS).toBe(10);
   });
 
   test("accepts Pebble request limits from the environment", () => {

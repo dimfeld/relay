@@ -5,6 +5,11 @@ const nonEmpty = z.string().trim().min(1);
 
 export const DEFAULT_CONTEXT_LIMIT = 10;
 export const DEFAULT_CONTEXT_MAX_AGE_MINUTES = 15;
+/**
+ * With the queue backoff (5 s doubling to a 15 min cap), ten attempts cover an owner outage of
+ * about 36 minutes before a delivery becomes dead and needs a manual retry.
+ */
+export const DEFAULT_DELIVERY_MAX_ATTEMPTS = 10;
 
 const credentials = z.string().transform((value, context) => {
   try {
@@ -38,6 +43,11 @@ const schema = z
     PEBBLE_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
     PEBBLE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(30),
     INTERNAL_SERVICE_CREDENTIALS: credentials,
+    DELIVERY_MAX_ATTEMPTS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_DELIVERY_MAX_ATTEMPTS),
     WAKE_NAME: nonEmpty.optional(),
     DEFAULT_EXECUTOR: z.enum(["codex", "claude"]),
     CODEX_EXECUTABLE: nonEmpty,

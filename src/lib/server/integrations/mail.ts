@@ -1,5 +1,5 @@
 import type { Integration } from "../db/repositories/integrations";
-import { fetchTransport, postJson, responseObjectId } from "./http";
+import { fetchTransport, postJson, requireObjectId } from "./http";
 import type { DeliveryEnvelope, HttpTransport, OwnerAdapter } from "./types";
 
 const MAIL_ENDPOINTS = {
@@ -55,10 +55,11 @@ export function createMailAdapter(transport: HttpTransport = fetchTransport): Ow
     async deliver(integration: Integration, envelope: DeliveryEnvelope) {
       const { path, body } = mailRequest(envelope);
       const response = await postJson({ integration, envelope, path, body, transport });
-      const downstreamId = responseObjectId(response, MAIL_RESPONSE_ID_FIELD);
-      if (!downstreamId) {
-        throw new Error(`Mail response for ${envelope.actionType} did not include an object id.`);
-      }
+      const downstreamId = requireObjectId(
+        response,
+        MAIL_RESPONSE_ID_FIELD,
+        `Mail response for ${envelope.actionType} did not include an object id.`
+      );
       return { downstreamId, response };
     },
   };

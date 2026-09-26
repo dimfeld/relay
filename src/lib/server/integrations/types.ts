@@ -13,7 +13,7 @@ export interface DeliveryEnvelope<TPayload = unknown> {
 
 export interface OwnerDeliveryResult {
   downstreamId: string;
-  response: unknown;
+  response: HttpResponse;
 }
 
 export interface HttpRequest {
