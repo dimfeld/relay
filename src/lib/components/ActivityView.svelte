@@ -1,4 +1,9 @@
 <script lang="ts">
+  import ActivityCommandForm from "./ActivityCommandForm.svelte";
+  import {
+    createActivityCommandFormState,
+    type ActivityCommandSubmission,
+  } from "$lib/activity-command";
   import type {
     ActivityFilterOptions,
     ActivityRow,
@@ -13,6 +18,8 @@
     actionType?: string;
     from?: string;
     to?: string;
+    submitCommand: (input: ActivityCommandSubmission) => Promise<string>;
+    refreshActivity: () => Promise<unknown>;
   }
 
   let {
@@ -23,7 +30,11 @@
     actionType = $bindable(""),
     from = $bindable(""),
     to = $bindable(""),
+    submitCommand,
+    refreshActivity,
   }: Props = $props();
+
+  const commandForm = $state(createActivityCommandFormState());
 
   function statusLabel(value: ActivityStatus): string {
     return value.replaceAll("_", " ");
@@ -44,6 +55,12 @@
     <h1>Activity</h1>
     <p>Incoming events, classifications, and delivery status. <a href="/failures">View failures</a></p>
   </header>
+
+  <ActivityCommandForm
+    state={commandForm}
+    {submitCommand}
+    {refreshActivity}
+  />
 
   <section aria-label="Activity filters" class="filters">
     <label>

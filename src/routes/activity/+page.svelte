@@ -1,6 +1,6 @@
 <script lang="ts">
   import ActivityView from "$lib/components/ActivityView.svelte";
-  import { getActivityView } from "$lib/activity.remote";
+  import { getActivityView, submitActivityCommand } from "$lib/activity.remote";
   import type { ActivityStatus } from "$lib/server/activity";
 
   let source = $state("");
@@ -18,6 +18,16 @@
       to: to || undefined,
     })
   );
+
+  function refreshActivity() {
+    return getActivityView({
+      source: source || undefined,
+      status: (status || undefined) as ActivityStatus | undefined,
+      actionType: actionType || undefined,
+      from: from || undefined,
+      to: to || undefined,
+    }).refresh();
+  }
 </script>
 
 <svelte:head>
@@ -36,4 +46,6 @@
   bind:actionType
   bind:from
   bind:to
+  submitCommand={submitActivityCommand}
+  {refreshActivity}
 />

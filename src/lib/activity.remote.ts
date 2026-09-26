@@ -1,7 +1,8 @@
-import { query } from "$app/server";
+import { command, getRequestEvent, query } from "$app/server";
 import { z } from "zod";
 import { ACTIVITY_STATUSES, getActivityFilterOptions, listActivity } from "$lib/server/activity";
 import { getServerContext } from "$lib/server/context";
+import { ingestWebCommand, webCommandInputSchema } from "$lib/server/events/web";
 
 const activityFiltersSchema = z.object({
   source: z.string().optional(),
@@ -23,4 +24,10 @@ export const getActivityView = query(activityFiltersSchema, (filters) => {
     events: listActivity(db, filters),
     options: getActivityFilterOptions(db),
   };
+});
+
+export const submitActivityCommand = command(webCommandInputSchema, (input) => {
+  const { db } = getServerContext();
+  const { locals } = getRequestEvent();
+  return ingestWebCommand(db, input, locals.correlationId).eventId;
 });

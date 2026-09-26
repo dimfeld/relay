@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Database } from "bun:sqlite";
 import { render } from "svelte/server";
+import ActivityCommandForm from "../src/lib/components/ActivityCommandForm.svelte";
 import ActivityView from "../src/lib/components/ActivityView.svelte";
+import {
+  createActivityCommandFormState,
+  submitActivityCommandForm,
+} from "../src/lib/activity-command";
 import { getActivityFilterOptions, listActivity } from "../src/lib/server/activity";
 import { openDatabase } from "../src/lib/server/db";
 import { createActionResult } from "../src/lib/server/db/repositories/actionResults";
@@ -109,12 +114,26 @@ function seedActivity(db: Database) {
   });
 }
 
+function renderActivity(
+  events: ReturnType<typeof listActivity>,
+  options: ReturnType<typeof getActivityFilterOptions>
+) {
+  return render(ActivityView, {
+    props: {
+      events,
+      options,
+      submitCommand: async () => "event-id",
+      refreshActivity: async () => {},
+    },
+  });
+}
+
 describe("Activity view", () => {
   test("renders fixture rows, filters, problem markers, and empty results", () => {
     seedActivity(db);
     const options = getActivityFilterOptions(db);
     const events = listActivity(db);
-    const { body } = render(ActivityView, { props: { events, options } });
+    const { body } = renderActivity(events, options);
     const eventRows = body.match(/<tr class="[^"]*">.*?<\/tr>/g) ?? [];
 
     expect(eventRows).toHaveLength(3);
@@ -155,13 +174,114 @@ describe("Activity view", () => {
     expect(body.match(/type="date"/g)).toHaveLength(2);
 
     const failedEvents = listActivity(db, { status: "failed" });
-    const failedBody = render(ActivityView, { props: { events: failedEvents, options } }).body;
+    const failedBody = renderActivity(failedEvents, options).body;
     expect(failedBody).toContain("Schedule the review");
     expect(failedBody).not.toContain("Maybe turn this into a note");
     expect(failedBody).not.toContain("Call Sam about the launch");
 
     const emptyEvents = listActivity(db, { source: "missing" });
-    const emptyBody = render(ActivityView, { props: { events: emptyEvents, options } }).body;
+    const emptyBody = renderActivity(emptyEvents, options).body;
     expect(emptyBody).toContain("No events match these filters.");
+    expect(emptyBody).toContain('aria-label="Submit a command"');
+    expect(emptyBody).toContain('id="command-text"');
+  });
+
+  test("command form shows pending, success, and failure states", () => {
+    const submitCommand = async () => "event/with space";
+    const refreshActivity = async () => {};
+
+    const initial = render(ActivityCommandForm, {
+      props: {
+        state: createActivityCommandFormState(),
+        submitCommand,
+        refreshActivity,
+      },
+    }).body;
+    expect(initial).toMatch(/<label for="command-text"[^>]*>Command<\/label>/);
+    expect(initial).toContain("Submit command</button>");
+
+    const pendingState = createActivityCommandFormState();
+    pendingState.text = "Call Sam";
+    pendingState.pending = true;
+    const pending = render(ActivityCommandForm, {
+      props: { state: pendingState, submitCommand, refreshActivity },
+    }).body;
+    expect(pending).toContain("Submitting…</button>");
+    expect(pending).toMatch(/<button[^>]*type="submit"[^>]*disabled/);
+    expect(pending).toMatch(/<textarea[^>]*disabled/);
+
+    const successState = createActivityCommandFormState();
+    successState.eventId = "event/with space";
+    const success = render(ActivityCommandForm, {
+      props: { state: successState, submitCommand, refreshActivity },
+    }).body;
+    expect(success).toContain('href="/activity/event%2Fwith%20space"');
+    expect(success).toContain("Command submitted.");
+
+    const failureState = createActivityCommandFormState();
+    failureState.text = "Call Sam tomorrow";
+    failureState.error = "The server could not save this command.";
+    const failure = render(ActivityCommandForm, {
+      props: { state: failureState, submitCommand, refreshActivity },
+    }).body;
+    expect(failure).toContain('role="alert"');
+    expect(failure).toContain("The server could not save this command.");
+    expect(failure).toContain("Call Sam tomorrow");
+  });
+
+  test("command form keeps its submission pending, clears on success, and preserves errors", async () => {
+    const state = createActivityCommandFormState();
+    state.text = "Call Sam";
+    let resolveSubmission!: (eventId: string) => void;
+    const pendingResult = new Promise<string>((resolve) => {
+      resolveSubmission = resolve;
+    });
+    let submissionId = "";
+    let refreshCount = 0;
+
+    const pending = submitActivityCommandForm(
+      state,
+      async (input) => {
+        submissionId = input.submissionId;
+        return pendingResult;
+      },
+      async () => {
+        refreshCount += 1;
+      }
+    );
+    expect(state.pending).toBe(true);
+    expect(submissionId).toMatch(/^[0-9a-f-]{36}$/i);
+    resolveSubmission("event-1");
+    await pending;
+
+    expect(state).toMatchObject({ pending: false, eventId: "event-1", text: "", error: null });
+    expect(refreshCount).toBe(1);
+
+    state.text = "Call Sam";
+    await submitActivityCommandForm(
+      state,
+      async (input) => {
+        expect(input.submissionId).not.toBe(submissionId);
+        submissionId = input.submissionId;
+        throw new Error("The server could not save this command.");
+      },
+      async () => {}
+    );
+    expect(state).toMatchObject({
+      pending: false,
+      text: "Call Sam",
+      error: "The server could not save this command.",
+    });
+
+    const retrySubmissionId = state.submission!.id;
+    await submitActivityCommandForm(
+      state,
+      async (input) => {
+        expect(input.submissionId).toBe(retrySubmissionId);
+        return "event-2";
+      },
+      async () => {}
+    );
+    expect(state.eventId).toBe("event-2");
   });
 });

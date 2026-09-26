@@ -1,12 +1,11 @@
 import type { Database } from "bun:sqlite";
-import { CLASSIFICATION_JOB_MAX_ATTEMPTS } from "../config";
 import { nowIso } from "../db/json";
 import { createAttempt } from "../db/repositories/attempts";
 import { createEvent, findEventBySource } from "../db/repositories/events";
-import { enqueueJob } from "../db/repositories/jobs";
 import { log as defaultLog } from "../logging";
 import type { OperationalMetrics } from "../logging/metrics";
 import { operationalMetrics } from "../logging/metrics";
+import { createCaptureInTransaction } from "./capture";
 
 interface PebbleCapture {
   client: string;
@@ -97,7 +96,7 @@ export async function ingestPebbleWebhook(
       const existing = findEventBySource(db, "pebble", sourceEventId);
       if (existing) return { duplicate: true as const, eventId: existing.id, status: 200 as const };
 
-      const event = createEvent(db, {
+      const event = createCaptureInTransaction(db, {
         source: "pebble",
         sourceEventId,
         type: "pebble.transcription",
@@ -109,13 +108,6 @@ export async function ingestPebbleWebhook(
           recordedAtMs: parsed.capture.recordedAtMs,
           correlationId,
         },
-      });
-      enqueueJob(db, {
-        type: "classify",
-        queue: "classification",
-        payload: { eventId: event.id },
-        eventId: event.id,
-        maxAttempts: CLASSIFICATION_JOB_MAX_ATTEMPTS,
       });
       return { eventId: event.id, status: 202 as const };
     }
