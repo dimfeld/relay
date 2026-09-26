@@ -227,14 +227,14 @@ Objective: Prepare safe APIs without enabling arbitrary privileged execution.
 ## Phase 14 — Admin UI: Activity
 Objective: Create an operational console rather than another productivity inbox.
 ### Tasks
-- ☐ Build Activity page showing incoming events chronologically.
-- ☐ Display source, timestamp, original text/summary, classification, destination, and status.
+- ☑ Build Activity page showing incoming events chronologically.
+- ☑ Display source, timestamp, original text/summary, classification, destination, and status.
 - ☐ Build event detail page showing raw payload, normalized event, context used, classifier result, processing attempts, policy result, delivery attempts, and downstream ID.
-- ☐ Add filters for source, status, action type, and date.
-- ☐ Make failures/needs_review visually obvious without adding task/reminder management features.
+- ☑ Add filters for source, status, action type, and date.
+- ☑ Make failures/needs_review visually obvious without adding task/reminder management features.
 ### Done when
 - ☐ A Pebble capture can be followed end-to-end from raw webhook through downstream result.
-- ☐ No Tasks, Reminders, Notes, or Packages top-level product sections exist in the Hub.
+- ☑ No Tasks, Reminders, Notes, or Packages top-level product sections exist in the Hub.
 ## Phase 15 — Admin UI: Executions and Failures
 Objective: Support focused inspection of coding agents and broken integrations.
 ### Tasks

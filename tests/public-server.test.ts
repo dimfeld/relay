@@ -24,6 +24,7 @@ test("public listener does not serve internal paths", async () => {
       "/api/deliveries",
       "/api/executions",
       "/api/projects",
+      "/activity",
     ];
     for (const path of ["/webhooks/pebble", "/health", "/admin", ...internalApiPaths]) {
       const response = await fetch(new URL(path, server.url), {
