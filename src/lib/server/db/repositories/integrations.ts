@@ -193,6 +193,13 @@ export function getEventRoute<TConfig = unknown>(
   return row ? mapRoute<TConfig>(row) : null;
 }
 
+export function listEnabledEventRoutes<TConfig = unknown>(db: Database): EventRoute<TConfig>[] {
+  return db
+    .query<RouteRow, []>("SELECT * FROM event_routes WHERE enabled = 1 ORDER BY id")
+    .all()
+    .map(mapRoute<TConfig>);
+}
+
 export function updateEventRoute<TConfig>(
   db: Database,
   id: string,

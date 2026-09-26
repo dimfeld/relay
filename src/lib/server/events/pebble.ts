@@ -104,6 +104,7 @@ export async function ingestPebbleWebhook(
           client: parsed.capture.client,
           recordedAt: parsed.capture.recordedAt,
           recordedAtMs: parsed.capture.recordedAtMs,
+          correlationId,
         },
       });
       enqueueJob(db, {
@@ -120,6 +121,7 @@ export async function ingestPebbleWebhook(
       source: "pebble",
       type: "pebble.malformed",
       payload,
+      metadata: { correlationId },
     });
     const failedAt = nowIso();
     createAttempt(db, {
