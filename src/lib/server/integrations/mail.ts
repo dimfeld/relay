@@ -11,6 +11,11 @@ const MAIL_RESPONSE_ID_FIELD = "id";
 /**
  * Mail's request field names and endpoints are provisional until its receiver contract is
  * agreed. Keep the mapping here so that contract changes stay within this adapter.
+ *
+ * `reminder.create` posts `{ text, remindAt, timeZone, originalTimePhrase, sourceEventId }`
+ * to `reminders` with the delivery's stable `Idempotency-Key` header, and Relay records the
+ * `id` field of the response as the Mail reminder ID. Mail owns scheduling and surfacing
+ * the reminder; Relay only creates it and never schedules the notification itself.
  */
 function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown } {
   const payload = envelope.payload;
