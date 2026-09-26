@@ -81,6 +81,15 @@ export function getClassification(db: Database, id: string): Classification | nu
   return row ? mapClassification(row) : null;
 }
 
+export function listClassificationsForEvent(db: Database, eventId: string): Classification[] {
+  return db
+    .query<ClassificationRow, [string]>(
+      "SELECT * FROM classifications WHERE event_id = ? ORDER BY created_at, id"
+    )
+    .all(eventId)
+    .map(mapClassification);
+}
+
 export function updateClassification(
   db: Database,
   id: string,

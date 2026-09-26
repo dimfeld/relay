@@ -77,6 +77,18 @@ export function getActionResult<TResult = unknown>(
   return row ? mapActionResult<TResult>(row) : null;
 }
 
+export function listActionResultsForEvent<TResult = unknown>(
+  db: Database,
+  eventId: string
+): ActionResult<TResult>[] {
+  return db
+    .query<ActionResultRow, [string]>(
+      "SELECT * FROM action_results WHERE event_id = ? ORDER BY created_at, id"
+    )
+    .all(eventId)
+    .map(mapActionResult<TResult>);
+}
+
 export function updateActionResult<TResult>(
   db: Database,
   id: string,

@@ -117,7 +117,7 @@ Objective: Allow recent related captures to influence classification without cre
 ### Done when
 - ☐ A follow-up such as 'Also make the reservoir removable' can append to a recent relevant note.
 - ☐ An unrelated later capture does not accidentally append to old context.
-- ☐ The event detail record can show exactly which context influenced classification.
+- ☑ The event detail record can show exactly which context influenced classification.
 ## Phase 7 — Routing and Application Ownership
 Objective: Route actions to the correct domain owner rather than storing domain state in Relay.
 ### Tasks
@@ -229,11 +229,11 @@ Objective: Create an operational console rather than another productivity inbox.
 ### Tasks
 - ☑ Build Activity page showing incoming events chronologically.
 - ☑ Display source, timestamp, original text/summary, classification, destination, and status.
-- ☐ Build event detail page showing raw payload, normalized event, context used, classifier result, processing attempts, policy result, delivery attempts, and downstream ID.
+- ☑ Build event detail page showing raw payload, normalized event, context used, classifier result, processing attempts, policy result, delivery attempts, and downstream ID.
 - ☑ Add filters for source, status, action type, and date.
 - ☑ Make failures/needs_review visually obvious without adding task/reminder management features.
 ### Done when
-- ☐ A Pebble capture can be followed end-to-end from raw webhook through downstream result.
+- ☑ A Pebble capture can be followed end-to-end from raw webhook through downstream result.
 - ☑ No Tasks, Reminders, Notes, or Packages top-level product sections exist in the Hub.
 ## Phase 15 — Admin UI: Executions and Failures
 Objective: Support focused inspection of coding agents and broken integrations.
