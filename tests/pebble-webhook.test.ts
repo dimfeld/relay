@@ -104,6 +104,7 @@ test("valid Pebble capture stores the raw body and queues one linked classificat
       client: "ring",
       recordedAt: new Date(Number(recordedAt)).toISOString(),
       recordedAtMs: Number(recordedAt),
+      correlationId: response.headers.get("x-correlation-id"),
     });
     expect(eventCount(db)).toBe(1);
     expect(jobCount(db)).toBe(1);

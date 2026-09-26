@@ -72,10 +72,10 @@ function mapDelivery<TRequest, TResponse>(row: DeliveryRow): Delivery<TRequest, 
   };
 }
 
-export function createDelivery<TRequest>(
+export function createDelivery<TRequest, TResponse = unknown>(
   db: Database,
   input: CreateDeliveryInput<TRequest>
-): Delivery<TRequest> {
+): Delivery<TRequest, TResponse> {
   const id = input.id ?? crypto.randomUUID();
   const timestamp = nowIso();
   db.query(
@@ -96,7 +96,7 @@ export function createDelivery<TRequest>(
     timestamp,
     timestamp
   );
-  return getDelivery<TRequest>(db, id)!;
+  return getDelivery<TRequest, TResponse>(db, id)!;
 }
 
 export function getDelivery<TRequest = unknown, TResponse = unknown>(
@@ -104,6 +104,16 @@ export function getDelivery<TRequest = unknown, TResponse = unknown>(
   id: string
 ): Delivery<TRequest, TResponse> | null {
   const row = db.query<DeliveryRow, [string]>("SELECT * FROM deliveries WHERE id = ?").get(id);
+  return row ? mapDelivery<TRequest, TResponse>(row) : null;
+}
+
+export function findDeliveryByIdempotencyKey<TRequest = unknown, TResponse = unknown>(
+  db: Database,
+  idempotencyKey: string
+): Delivery<TRequest, TResponse> | null {
+  const row = db
+    .query<DeliveryRow, [string]>("SELECT * FROM deliveries WHERE idempotency_key = ?")
+    .get(idempotencyKey);
   return row ? mapDelivery<TRequest, TResponse>(row) : null;
 }
 
