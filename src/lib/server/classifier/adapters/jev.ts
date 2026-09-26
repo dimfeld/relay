@@ -1,5 +1,8 @@
-import { APIError, choice, RateLimitError, TypeSafeClient, TypeSafeError } from "@typesafe-ai/sdk";
-import type { ChoiceQuestion as TypeSafeChoiceQuestion } from "@typesafe-ai/sdk";
+import { APIError, choice, noul, RateLimitError, TypeSafeClient, TypeSafeError } from "@typesafe-ai/sdk";
+import type {
+  ChoiceQuestion as TypeSafeChoiceQuestion,
+  NoulQuestion as TypeSafeNoulQuestion,
+} from "@typesafe-ai/sdk";
 import { ProviderError, type JevClassifier, type JevRequest, type JevResponse } from "../types";
 
 const PROVIDER = "typesafe";
@@ -44,9 +47,12 @@ export function createTypeSafeJev({ apiKey, model, fetch }: TypeSafeJevOptions):
 
   return {
     async classify({ state, questions }: JevRequest): Promise<JevResponse> {
-      const sdkQuestions: Record<string, TypeSafeChoiceQuestion> = {};
+      const sdkQuestions: Record<string, TypeSafeChoiceQuestion | TypeSafeNoulQuestion> = {};
       for (const [name, question] of Object.entries(questions)) {
-        sdkQuestions[name] = choice(question.instructions, question.options);
+        sdkQuestions[name] =
+          question.type === "noul"
+            ? noul(question.instructions, question.criteria)
+            : choice(question.instructions, question.options);
       }
 
       const started = performance.now();
@@ -62,11 +68,15 @@ export function createTypeSafeJev({ apiKey, model, fetch }: TypeSafeJevOptions):
 
       const answers: JevResponse["answers"] = {};
       for (const [name, answer] of Object.entries(result.answers)) {
-        answers[name] = {
-          choice: answer.choice,
-          confidence: answer.confidence,
-          probabilities: { ...answer.probabilities },
-        };
+        answers[name] =
+          answer.type === "noul"
+            ? { type: "noul", noul: answer.noul }
+            : {
+                type: "choice",
+                choice: answer.choice,
+                confidence: answer.confidence,
+                probabilities: { ...answer.probabilities },
+              };
       }
       return {
         provider: PROVIDER,

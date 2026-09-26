@@ -1,5 +1,6 @@
 import type {
   ChoiceAnswer,
+  JevAnswer,
   JevClassifier,
   JevRequest,
   LunaExtractor,
@@ -7,7 +8,7 @@ import type {
 } from "../src/lib/server/classifier/types";
 
 export function answer(choice: string, confidence = 0.9): ChoiceAnswer {
-  return { choice, confidence, probabilities: { [choice]: confidence } };
+  return { type: "choice", choice, confidence, probabilities: { [choice]: confidence } };
 }
 
 type JevStep = Record<string, string | undefined> | Error;
@@ -27,7 +28,15 @@ export function fakeJev(...steps: JevStep[]): JevClassifier & { requests: JevReq
         latencyMs: 12,
         usage: { inputTokens: 100, outputTokens: 3 },
         answers: Object.fromEntries(
-          Object.entries(step).flatMap(([name, label]) => (label ? [[name, answer(label)]] : []))
+          Object.entries(step).flatMap(([name, label]) => {
+            if (!label) return [];
+            const question = request.questions[name];
+            const value: JevAnswer =
+              question?.type === "noul"
+                ? { type: "noul", noul: label === "yes" ? 1 : 0 }
+                : answer(label);
+            return [[name, value]];
+          })
         ),
       };
     },

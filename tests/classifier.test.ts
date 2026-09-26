@@ -84,7 +84,11 @@ describe("classifyCapture", () => {
       name: "note.append",
       text: "Also make the mounting plate removable",
       context: noteContext,
-      answers: { action_type: "note_continuation", note_target: "context_1" },
+      answers: {
+        action_type: "note_continuation",
+        note_continuation: "yes",
+        note_target: "context_1",
+      },
       luna: { type: "note.append", body: "Make the mounting plate removable" },
       expected: {
         type: "note.append",
@@ -161,11 +165,21 @@ describe("classifyCapture", () => {
     expect(Object.keys(questions).sort()).toEqual([
       "action_type",
       "coding_executor",
+      "note_continuation",
       "note_target",
       "reminder_time",
     ]);
-    expect(questions.note_target.options).toHaveProperty("context_1");
-    expect(questions.note_target.options).toHaveProperty("none");
+    const noteTargetQuestion = questions.note_target;
+    if (!("options" in noteTargetQuestion)) throw new Error("note_target must be a choice");
+    expect(noteTargetQuestion.options).toHaveProperty("context_1");
+    expect(questions.note_continuation).toEqual({
+      type: "noul",
+      instructions: "Does this continue in an earlier note?",
+      criteria: {
+        true: "This note is directly related to an earlier note and should be merged into it",
+        false: "This note is a new note and should not be merged",
+      },
+    });
     expect(state).toMatchObject({
       capture: "Also add a hinge",
       recentContext: [{ label: "context_1" }],
@@ -215,7 +229,7 @@ describe("classifyCapture", () => {
 
   test("marks an uncertain note target as needs_review without extraction", async () => {
     for (const [context, answers] of [
-      [noteContext, { note_target: "none" }],
+      [noteContext, { note_continuation: "no", note_target: "context_1" }],
       [[], {}],
     ] as const) {
       const extractor = fakeLuna();

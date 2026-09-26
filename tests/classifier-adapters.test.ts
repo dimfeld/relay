@@ -71,7 +71,11 @@ describe("TypeSafe Jev adapter", () => {
     const response = await jev.classify({
       state: { capture: "Buy milk" },
       questions: {
-        action_type: { instructions: "Which?", options: { task: "A task", unknown: "?" } },
+        action_type: {
+          type: "choice",
+          instructions: "Which?",
+          options: { task: "A task", unknown: "?" },
+        },
       },
     });
 
@@ -108,7 +112,7 @@ describe("TypeSafe Jev adapter", () => {
     const error = await jev
       .classify({
         state: { capture: "x" },
-        questions: { q: { instructions: "?", options: { a: "", b: "" } } },
+        questions: { q: { type: "choice", instructions: "?", options: { a: "", b: "" } } },
       })
       .catch((caught) => caught);
 

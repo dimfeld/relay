@@ -20,8 +20,8 @@ import {
 import {
   ProviderError,
   type CallMetadata,
-  type ChoiceAnswer,
   type ContextItem,
+  type JevAnswer,
   type JevClassifier,
   type LunaExtractor,
   type RegisteredProject,
@@ -48,7 +48,7 @@ export interface JevCallRecord extends CallMetadata {
   actionType: ActionType | null;
   confidence: number | null;
   probabilities: Record<string, number> | null;
-  answers: Record<string, ChoiceAnswer>;
+  answers: Record<string, JevAnswer>;
 }
 
 export interface LunaCallRecord extends CallMetadata {
@@ -146,20 +146,21 @@ export async function classifyCapture(
     timeZone: input.timeZone,
   });
 
-  let answers: Record<string, ChoiceAnswer>;
+  let answers: Record<string, JevAnswer>;
   try {
     const response = await withRateLimitRetry(() => jev.classify(request), retry);
     answers = response.answers;
     const selected = answers.action_type;
+    const selectedLabel = selected?.type === "choice" ? selected.choice : "";
     record.jev = {
       provider: response.provider,
       model: response.model,
       latencyMs: response.latencyMs,
       usage: response.usage,
-      label: selected?.choice ?? "",
-      actionType: selected ? actionTypeForLabel(selected.choice) : null,
-      confidence: selected?.confidence ?? null,
-      probabilities: selected?.probabilities ?? null,
+      label: selectedLabel,
+      actionType: selected?.type === "choice" ? actionTypeForLabel(selected.choice) : null,
+      confidence: selected?.type === "choice" ? selected.confidence : null,
+      probabilities: selected?.type === "choice" ? selected.probabilities : null,
       answers,
     };
   } catch (error) {
@@ -176,11 +177,22 @@ export async function classifyCapture(
     return { status: "classified", action, record };
   }
 
-  const noteTarget = noteTargetForLabel(answers.note_target?.choice, noteTargets);
+  const noteTarget =
+    answers.note_continuation?.type === "noul" && answers.note_continuation.noul > 0.7
+      ? noteTargetForLabel(
+          answers.note_target?.type === "choice" ? answers.note_target.choice : undefined,
+          noteTargets
+        )
+      : null;
   if (actionType === "note.append" && !noteTarget) {
     return needsReview(actionType, "note continuation target is unclear");
   }
-  if (actionType === "reminder.create" && !reminderTimeStated(answers.reminder_time?.choice)) {
+  if (
+    actionType === "reminder.create" &&
+    !reminderTimeStated(
+      answers.reminder_time?.type === "choice" ? answers.reminder_time.choice : undefined
+    )
+  ) {
     return needsReview(actionType, "reminder time is missing");
   }
 
@@ -204,7 +216,9 @@ export async function classifyCapture(
     preprocessed,
     projects: input.projects,
     noteTarget,
-    executor: executorForLabel(answers.coding_executor?.choice),
+    executor: executorForLabel(
+      answers.coding_executor?.type === "choice" ? answers.coding_executor.choice : undefined
+    ),
   });
   if ("reason" in built) return needsReview(actionType, built.reason);
 

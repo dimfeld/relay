@@ -55,6 +55,19 @@ describe("loadClassifierConfig", () => {
     const config = loadClassifierConfig({ TYPESAFE_API_KEY: "ts-key", OPENAI_API_KEY: "oa-key" });
     expect(config.JEV_MODEL).toBe("jev-latest");
     expect(config.LUNA_MODEL).toBe("gpt-6-luna");
+    expect(config.CLASSIFIER_CONTEXT_LIMIT).toBe(10);
+    expect(config.CLASSIFIER_CONTEXT_MAX_AGE_MINUTES).toBe(15);
+  });
+
+  test("accepts classifier context limits from the environment", () => {
+    const config = loadClassifierConfig({
+      TYPESAFE_API_KEY: "ts-key",
+      OPENAI_API_KEY: "oa-key",
+      CLASSIFIER_CONTEXT_LIMIT: "4",
+      CLASSIFIER_CONTEXT_MAX_AGE_MINUTES: "8",
+    });
+    expect(config.CLASSIFIER_CONTEXT_LIMIT).toBe(4);
+    expect(config.CLASSIFIER_CONTEXT_MAX_AGE_MINUTES).toBe(8);
   });
 
   test("reports missing keys without other settings", () => {

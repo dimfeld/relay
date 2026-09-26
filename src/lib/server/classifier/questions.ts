@@ -1,9 +1,9 @@
 import type { PreprocessedInput } from "./preprocess";
 import type { ActionType } from "./schemas";
-import type { ChoiceQuestion, ContextItem, ExecutorProvider, JevRequest } from "./types";
+import type { ContextItem, ExecutorProvider, JevRequest } from "./types";
 
 /*
- * Every choice the pipeline needs is asked to Jev in one request. Answers that do not apply
+ * Every question the pipeline needs is asked to Jev in one request. Answers that do not apply
  * to the selected action type are ignored.
  */
 
@@ -36,8 +36,6 @@ const REMINDER_TIME_OPTIONS = {
   missing: "The capture does not say when the reminder should happen.",
 } as const;
 
-const NO_NOTE_TARGET = "none";
-
 export interface QuestionInput {
   preprocessed: PreprocessedInput;
   context: ContextItem[];
@@ -62,27 +60,37 @@ export function buildJevRequest({
     if (item.noteId) noteTargets.set(`context_${index + 1}`, item);
   });
 
-  const questions: Record<string, ChoiceQuestion> = {
+  const questions: JevRequest["questions"] = {
     action_type: {
+      type: "choice",
       instructions: "Which kind of action does the speaker want from this voice capture?",
       options: ACTION_OPTIONS,
     },
     coding_executor: {
+      type: "choice",
       instructions: "If this is a coding request, which coding agent does the speaker ask for?",
       options: EXECUTOR_OPTIONS,
     },
     reminder_time: {
+      type: "choice",
       instructions: "If this is a reminder, does the capture say when to remind the speaker?",
       options: REMINDER_TIME_OPTIONS,
     },
   };
   if (noteTargets.size) {
-    questions.note_target = {
-      instructions: "If this continues an earlier note, which recent capture does it continue?",
-      options: {
-        ...Object.fromEntries([...noteTargets].map(([label, item]) => [label, item.text])),
-        [NO_NOTE_TARGET]: "It does not clearly continue any of these captures.",
+    questions.note_continuation = {
+      type: "noul",
+      instructions: "Does this continue in an earlier note?",
+      criteria: {
+        true: "This note is directly related to an earlier note and should be merged into it",
+        false: "This note is a new note and should not be merged",
       },
+    };
+    questions.note_target = {
+      type: "choice",
+      instructions:
+        "If this continues an earlier note, which recent capture does it continue into?",
+      options: Object.fromEntries([...noteTargets].map(([label, item]) => [label, item.text])),
     };
   }
 

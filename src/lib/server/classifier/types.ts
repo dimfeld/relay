@@ -50,27 +50,48 @@ export class ProviderError extends Error {
 }
 
 export interface ChoiceQuestion {
+  type: "choice";
   instructions: string;
   /** Option labels mapped to their descriptions. */
   options: Record<string, string>;
 }
 
+export interface NoulQuestion {
+  type: "noul";
+  instructions: string;
+  criteria?: {
+    true?: string;
+    false?: string;
+  };
+}
+
+export type JevQuestion = ChoiceQuestion | NoulQuestion;
+
 export interface ChoiceAnswer {
+  type: "choice";
   choice: string;
   confidence: number | null;
   probabilities: Record<string, number> | null;
 }
 
+export interface NoulAnswer {
+  type: "noul";
+  /** Probability that the answer is yes. */
+  noul: number;
+}
+
+export type JevAnswer = ChoiceAnswer | NoulAnswer;
+
 export interface JevRequest {
   state: Record<string, unknown>;
-  questions: Record<string, ChoiceQuestion>;
+  questions: Record<string, JevQuestion>;
 }
 
 export interface JevResponse extends CallMetadata {
-  answers: Record<string, ChoiceAnswer>;
+  answers: Record<string, JevAnswer>;
 }
 
-/** Jev answers choice questions. It never produces dates, titles, note text, paths, or commands. */
+/** Jev answers typed questions. It never produces dates, titles, note text, paths, or commands. */
 export interface JevClassifier {
   classify(request: JevRequest): Promise<JevResponse>;
 }
