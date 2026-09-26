@@ -5,8 +5,10 @@ import type { Action } from "../src/lib/server/classifier/schemas";
 import { ProviderError } from "../src/lib/server/classifier/types";
 import { createClassificationHandler } from "../src/lib/server/classifier/worker";
 import { openDatabase } from "../src/lib/server/db";
+import { createActionResult } from "../src/lib/server/db/repositories/actionResults";
 import { listAttemptsForEvent } from "../src/lib/server/db/repositories/attempts";
 import {
+  createClassification,
   getClassification,
   type Classification,
 } from "../src/lib/server/db/repositories/classifications";
@@ -39,6 +41,7 @@ function setup(text: string, maxAttempts = 3) {
     source: "pebble",
     sourceEventId: "watch:1",
     type: "pebble.transcription",
+    receivedAt: "2026-09-25T16:00:00.000Z",
     payload: { body: "raw" },
     text,
     metadata: { recordedAt: "2026-09-25T16:00:00.000Z" },
@@ -111,6 +114,109 @@ describe("classification worker", () => {
       jev: { provider: "fake-typesafe", model: "jev-test", latencyMs: 12, label: "coding_request" },
       luna: [{ provider: "fake-openai", model: "luna-test", latencyMs: 34, valid: true }],
       reason: "classified as command.execute",
+    });
+  });
+
+  test("appends a recent continuation to its note and records exactly the supplied context", async () => {
+    const { db, event, settings } = setup("Also make the reservoir removable");
+    const prior = createEvent(db, {
+      source: "pebble",
+      sourceEventId: "watch:prior",
+      type: "pebble.transcription",
+      receivedAt: "2026-09-25T15:59:00.000Z",
+      payload: { body: "raw" },
+      text: "Coffee pourer idea: make the reservoir removable.",
+    });
+    createClassification(db, {
+      eventId: prior.id,
+      actionType: "note.create",
+      result: { action: { type: "note.create", body: "Coffee pourer idea" } },
+      provider: "fake-typesafe",
+      model: "jev-test",
+      confidence: 0.9,
+      status: "classified",
+      error: null,
+    });
+    createActionResult(db, {
+      eventId: prior.id,
+      actionType: "note.create",
+      status: "succeeded",
+      result: { noteId: "note-42" },
+    });
+    const jev = fakeJev({
+      ...baseAnswers,
+      action_type: "note_continuation",
+      note_target: "context_1",
+    });
+    const luna = fakeLuna({ type: "note.append", body: "Make the reservoir removable" });
+    const handler = createClassificationHandler({ db, jev, luna });
+
+    await createClassificationWorker(db, handler, settings).runOnce();
+
+    const [classification] = classificationsFor(db, event.id);
+    expect(dispatchableAction(classification)).toMatchObject({
+      type: "note.append",
+      targetId: "note-42",
+      contextEventId: prior.id,
+    });
+    expect(jev.requests[0].state.recentContext).toEqual([
+      {
+        label: "context_1",
+        text: "Coffee pourer idea: make the reservoir removable.",
+        actionType: "note.create",
+      },
+    ]);
+    expect(JSON.parse(luna.requests[0].prompt).recentContext).toEqual([
+      "Coffee pourer idea: make the reservoir removable.",
+    ]);
+    expect(listAttemptsForEvent(db, event.id)[0].details).toMatchObject({
+      selectedContextIds: [prior.id],
+    });
+  });
+
+  test("does not send an old unrelated capture as context", async () => {
+    const { db, event, settings } = setup("A separate idea: add a blue cup holder");
+    const old = createEvent(db, {
+      source: "pebble",
+      sourceEventId: "watch:old",
+      type: "pebble.transcription",
+      receivedAt: "2026-09-25T15:44:00.000Z",
+      payload: { body: "raw" },
+      text: "Old note about the camera mount",
+    });
+    createClassification(db, {
+      eventId: old.id,
+      actionType: "note.create",
+      result: { action: { type: "note.create", body: "Old note" } },
+      provider: "fake-typesafe",
+      model: "jev-test",
+      confidence: 0.9,
+      status: "classified",
+      error: null,
+    });
+    createActionResult(db, {
+      eventId: old.id,
+      actionType: "note.create",
+      status: "succeeded",
+      result: { noteId: "old-note" },
+    });
+    const jev = fakeJev({ ...baseAnswers, action_type: "new_note" });
+    const luna = fakeLuna({
+      type: "note.create",
+      title: null,
+      body: "A blue cup holder",
+      topic: null,
+    });
+    const handler = createClassificationHandler({ db, jev, luna });
+
+    await createClassificationWorker(db, handler, settings).runOnce();
+
+    const [classification] = classificationsFor(db, event.id);
+    expect(dispatchableAction(classification)).toMatchObject({ type: "note.create" });
+    expect(jev.requests[0].state.recentContext).toEqual([]);
+    expect(JSON.parse(luna.requests[0].prompt).recentContext).toEqual([]);
+    expect(listAttemptsForEvent(db, event.id)[0].details).toMatchObject({
+      selectedContextIds: [],
     });
   });
 

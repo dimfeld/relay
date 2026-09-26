@@ -3,6 +3,9 @@ import { z } from "zod";
 const port = z.coerce.number().int().min(1).max(65535);
 const nonEmpty = z.string().trim().min(1);
 
+export const DEFAULT_CONTEXT_LIMIT = 10;
+export const DEFAULT_CONTEXT_MAX_AGE_MINUTES = 15;
+
 const credentials = z.string().transform((value, context) => {
   try {
     const parsed = JSON.parse(value);
@@ -72,6 +75,12 @@ const classifierSchema = z.object({
   OPENAI_API_KEY: nonEmpty,
   JEV_MODEL: nonEmpty.default("jev-latest"),
   LUNA_MODEL: nonEmpty.default("gpt-6-luna"),
+  CLASSIFIER_CONTEXT_LIMIT: z.coerce.number().int().positive().default(DEFAULT_CONTEXT_LIMIT),
+  CLASSIFIER_CONTEXT_MAX_AGE_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_CONTEXT_MAX_AGE_MINUTES),
   /** IANA time zone used to resolve relative reminder times such as "tomorrow morning". */
   TIME_ZONE: nonEmpty.optional(),
 });

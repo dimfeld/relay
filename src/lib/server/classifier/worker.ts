@@ -7,6 +7,8 @@ import type { Job } from "../db/repositories/jobs";
 import { listRegisteredProjects } from "../projects/registry";
 import type { QueueHandler } from "../queue/worker";
 import { CLASSIFIED, NEEDS_REVIEW } from "./dispatch";
+import { DEFAULT_CONTEXT_LIMIT, DEFAULT_CONTEXT_MAX_AGE_MINUTES } from "../config";
+import { selectRecentContext } from "./context";
 import type { RateLimitRetryOptions } from "./retry";
 import type { Action } from "./schemas";
 import { classifyCapture, type ClassificationRecord } from "./service";
@@ -23,7 +25,9 @@ export interface ClassificationHandlerOptions {
   wakeName?: string;
   timeZone?: string;
   retry?: RateLimitRetryOptions;
-  /** Recent context for the capture. Context selection is added in a later phase. */
+  contextLimit?: number;
+  contextMaxAgeMinutes?: number;
+  /** Override the default bounded recent-capture selector. */
   selectContext?: (db: Database, event: IncomingEvent) => ContextItem[];
   /** Called only with a validated action, after the classification is stored. */
   onClassified?: (action: Action, classification: Classification) => void | Promise<void>;
@@ -50,7 +54,9 @@ export function createClassificationHandler({
   wakeName,
   timeZone,
   retry,
-  selectContext = () => [],
+  contextLimit = DEFAULT_CONTEXT_LIMIT,
+  contextMaxAgeMinutes = DEFAULT_CONTEXT_MAX_AGE_MINUTES,
+  selectContext,
   onClassified,
 }: ClassificationHandlerOptions): QueueHandler<ClassificationJobPayload> {
   return async (job: Job<ClassificationJobPayload>) => {
@@ -67,7 +73,15 @@ export function createClassificationHandler({
       updateAttempt(db, attempt.id, { status, error, finishedAt: nowIso(), details });
 
     let result;
+    let selectedContextIds: string[] = [];
     try {
+      const context = selectContext
+        ? selectContext(db, event)
+        : selectRecentContext(db, event, {
+            limit: contextLimit,
+            maxAgeMinutes: contextMaxAgeMinutes,
+          });
+      selectedContextIds = context.map((item) => item.eventId);
       result = await classifyCapture(
         {
           text: event.text ?? "",
@@ -75,7 +89,7 @@ export function createClassificationHandler({
           timeZone,
           wakeName,
           projects: listRegisteredProjects(db),
-          context: selectContext(db, event),
+          context,
         },
         { jev, luna, retry }
       );
@@ -83,6 +97,7 @@ export function createClassificationHandler({
       finishAttempt("failed", error instanceof Error ? error.message : String(error), {
         jobId: job.id,
         jobAttempt: job.attempts,
+        selectedContextIds,
       });
       throw error;
     }
