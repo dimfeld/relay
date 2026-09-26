@@ -108,7 +108,9 @@
           <tr class:attention={event.highlight}>
             <td class="source">{event.source}</td>
             <td><time datetime={event.receivedAt}>{event.receivedAt}</time></td>
-            <td class="summary">{event.summary}</td>
+            <td class="summary">
+              <a href={`/activity/${encodeURIComponent(event.id)}`}>{event.summary}</a>
+            </td>
             <td>
               <span>{event.actionType}</span>
               {#if event.confidence !== null}

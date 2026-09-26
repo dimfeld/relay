@@ -121,6 +121,7 @@ describe("Activity view", () => {
     expect(eventRows[0]).toContain(">mail</td>");
     expect(eventRows[0]).toContain("2026-04-04T11:00:00.000Z");
     expect(eventRows[0]).toContain("Schedule the review");
+    expect(eventRows[0]).toContain('href="/activity/failed"');
     expect(eventRows[0]).toContain("<span>task.create</span>");
     expect(eventRows[0]).toContain(">Mail");
     expect(eventRows[0]).toContain(">failed</span>");
