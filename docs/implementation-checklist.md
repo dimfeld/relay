@@ -261,13 +261,13 @@ Objective: Allow the system to improve operationally without destroying historic
 ## Phase 17 — Reminder Delivery Ownership
 Objective: Ensure reminders are scheduled and surfaced by Mail rather than by Relay.
 ### Tasks
-- ☐ Define Mail reminder creation contract including text, remindAt, timezone, source event ID, and original time phrase.
-- ☐ Do not implement user-facing reminder notification scheduling in the Hub.
-- ☐ If Mail is not ready, implement only a temporary adapter/stub clearly marked as non-canonical.
-- ☐ Record Mail's returned reminder ID.
+- ☑ Define Mail reminder creation contract including text, remindAt, timezone, source event ID, and original time phrase.
+- ☑ Do not implement user-facing reminder notification scheduling in the Hub.
+- ☑ If Mail is not ready, implement only a temporary adapter/stub clearly marked as non-canonical. (N/A: the Relay Mail adapter targets Mail's reminder contract; Relay tests use a fake Mail transport.)
+- ☑ Record Mail's returned reminder ID.
 ### Done when
-- ☐ Hub classification can create a reminder in Mail.
-- ☐ The Hub does not need to be running at reminder trigger time for Mail-owned reminders to fire.
+- ☐ Hub classification can create a reminder in Mail. (Relay side proven with a fake Mail transport; live proof needs Mail's receiver, see docs/external-app-changes.md.)
+- ☐ The Hub does not need to be running at reminder trigger time for Mail-owned reminders to fire. (External-app proof owned by Mail; see docs/external-app-changes.md.)
 ## Phase 18 — Observability and Operational Hardening
 Objective: Make failures diagnosable in a long-running personal service.
 ### Tasks

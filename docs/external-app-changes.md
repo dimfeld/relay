@@ -10,7 +10,7 @@ This document records work outside the Relay repository. The Relay tim plans cov
 ## Mail
 
 - Accept Relay `task.create` requests and create Mail-owned tasks. Return the Mail task ID. Honor a stable Relay idempotency key so delivery retries do not create duplicate tasks.
-- Accept Relay `reminder.create` requests with text, `remindAt`, time zone, original time phrase, and source event ID. Mail must store, schedule, and surface the reminder. Return the Mail reminder ID and honor the idempotency key. Relay must not schedule the user-facing notification.
+- Accept Relay `reminder.create` requests at `POST <mail base URL>/reminders` with the JSON body `{ text, remindAt, timeZone, originalTimePhrase, sourceEventId }` and the `Idempotency-Key` header. Mail must store, schedule, and surface the reminder. Return the Mail reminder ID in the response `id` field and honor the idempotency key so retries do not create duplicate reminders. Relay must not schedule the user-facing notification. Live proof that a reminder fires while Relay is stopped is Mail's work.
 - Publish Mail-owned `package.detected` events to Relay's internal `POST /api/events` when package data needs delivery to OmniApp. Send `Authorization: Bearer <mail token>`, `source: "mail"`, and a stable `sourceEventId` or `Idempotency-Key` header. Relay configures the Mail service identity with only the `events:publish` capability.
 - Define the exact request and response fields with Relay before a live integration test. The Relay plans can use local fake Mail endpoints until this contract is available.
 

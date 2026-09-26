@@ -118,36 +118,50 @@ describe("routing and owner adapters", () => {
     });
   });
 
-  test("sends Mail reminders with the owner fields", async () => {
+  test("sends Mail reminders with the owner fields and records the Mail reminder ID", async () => {
     const mail = makeIntegration("Mail reminders", "mail", "https://mail.test");
     const event = makeEvent("event-reminder", "pebble.transcription", {});
     makeRoute(mail.id, { actionType: "reminder.create" });
-    let body: Record<string, unknown> | undefined;
+    const requests: HttpRequest[] = [];
     const service = createRoutingService({
       db,
       registry: createIntegrationRegistry({
-        mailTransport: async (request) => {
-          body = requestBody(request);
+        mailTransport: async (sent) => {
+          requests.push(sent);
           return { status: 201, body: { id: "mail-reminder-8" } };
         },
       }),
     });
-
-    const outcome = await service.routeAction(event, {
-      type: "reminder.create",
+    const action = {
+      type: "reminder.create" as const,
       text: "Take medicine",
       remindAt: "2026-09-27T08:00:00Z",
       timeZone: "Etc/UTC",
       originalTimePhrase: "tomorrow morning",
-    });
+    };
+
+    const outcome = await service.routeAction(event, action);
+    const repeated = await service.routeAction(event, action);
 
     expect(outcome.status).toBe("succeeded");
-    expect(body).toEqual({
+    expect(repeated.status).toBe("succeeded");
+    if (outcome.status !== "succeeded" || repeated.status !== "succeeded") return;
+    expect(requests).toHaveLength(1);
+    const request = requests[0]!;
+    expect(request.url).toBe("https://mail.test/reminders");
+    expect(request.headers["Idempotency-Key"]).toBe(outcome.delivery.idempotencyKey);
+    expect(repeated.delivery.idempotencyKey).toBe(outcome.delivery.idempotencyKey);
+    expect(requestBody(request)).toEqual({
       text: "Take medicine",
       remindAt: "2026-09-27T08:00:00Z",
       timeZone: "Etc/UTC",
       originalTimePhrase: "tomorrow morning",
       sourceEventId: event.id,
+    });
+    expect(outcome.delivery.response?.downstreamId).toBe("mail-reminder-8");
+    expect(outcome.actionResult?.result).toMatchObject({
+      integrationId: mail.id,
+      downstreamId: "mail-reminder-8",
     });
   });
 
