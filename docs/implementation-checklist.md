@@ -75,7 +75,7 @@ Objective: Provide a small durable queue using SQLite.
 - ☐ Implement retry attempts and available_at scheduling.
 - ☐ Add exponential backoff with sensible caps.
 - ☐ Ensure a process crash after job claim does not permanently lose the job.
-- ☐ Create worker loops for classification and delivery.
+- ☑ Create worker loops for classification and delivery. (The internal server starts them; see src/lib/server/runtime.ts.)
 - ☐ Keep workers separable even if they run in one process initially.
 ### Done when
 - ☐ Two worker instances cannot successfully process the same job concurrently.

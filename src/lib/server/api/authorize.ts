@@ -1,6 +1,6 @@
 import { authenticateService, hasCapability, type ServiceIdentity } from "../auth";
 import type { ServiceCapability } from "../config";
-import type { ServerContext } from "../context";
+import type { RequestContext } from "../context";
 
 export function errorResponse(status: number, error: string): Response {
   return Response.json({ error }, { status });
@@ -8,7 +8,7 @@ export function errorResponse(status: number, error: string): Response {
 
 /** Return the calling service, or the 401/403 response when it may not make the request. */
 export function authorize(
-  context: ServerContext,
+  context: RequestContext,
   request: Request,
   capability: ServiceCapability
 ): ServiceIdentity | Response {

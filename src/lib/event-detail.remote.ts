@@ -8,7 +8,6 @@ import {
   reclassifyEvent,
 } from "$lib/server/corrections";
 import { getServerContext } from "$lib/server/context";
-import { createRoutingService } from "$lib/server/routing/service";
 import { z } from "zod";
 
 /** The internal admin UI has no signed-in user, so its actions are recorded under this name. */
@@ -33,14 +32,8 @@ export const correctEventClassification = command(
   z.object({ eventId: z.string(), correction: correctionInputSchema }),
   ({ eventId, correction }) =>
     runAction(eventId, () => {
-      const { db } = getServerContext();
-      return correctClassification(
-        db,
-        createRoutingService({ db }),
-        eventId,
-        correction,
-        ADMIN_UI_OPERATOR
-      );
+      const { db, routing } = getServerContext();
+      return correctClassification(db, routing, eventId, correction, ADMIN_UI_OPERATOR);
     })
 );
 

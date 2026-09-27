@@ -65,6 +65,26 @@ Set `PROJECTS_CONFIG_PATH` to a JSON file to register approved project directori
 
 `aliases`, `instructions`, and `policy` are optional. Push is allowed by default to match the branch-push workflow in the agent contract. Merge and deploy are blocked by default. Project lookup accepts a registered ID, name, or alias. It does not accept a filesystem path.
 
+Set `INTEGRATIONS_CONFIG_PATH` to a JSON file to configure the owner applications and the routes to them. Relay syncs this file to SQLite when the internal server starts. An integration or route that is removed from the file is disabled, not deleted, because delivery history refers to it. `kind` is `mail` or `omniapp`. Each route sets `actionType`, `eventType`, or both. docs/external-app-changes.md defines the Mail API. The file shape is:
+
+```json
+{
+  "integrations": [
+    { "id": "mail", "name": "Mail", "kind": "mail", "baseUrl": "https://mail.example/api/relay" },
+    { "id": "omniapp", "name": "OmniApp", "kind": "omniapp", "baseUrl": "https://omni.example/api" }
+  ],
+  "routes": [
+    { "id": "mail-tasks", "actionType": "task.create", "integrationId": "mail" },
+    { "id": "mail-reminders", "actionType": "reminder.create", "integrationId": "mail" },
+    { "id": "mail-notes", "actionType": "note.create", "integrationId": "mail" },
+    { "id": "mail-note-appends", "actionType": "note.append", "integrationId": "mail" },
+    { "id": "omniapp-packages", "eventType": "package.detected", "integrationId": "omniapp" }
+  ]
+}
+```
+
+The internal server runs the classification and delivery queue workers. It needs the classifier settings (`TYPESAFE_API_KEY`, `OPENAI_API_KEY`, and the other classifier variables in `.env.example`). `WORKER_POLL_INTERVAL_MS` sets how often an idle worker checks for jobs. `WORKER_STALE_AFTER_MS` sets when a job that a stopped worker claimed becomes available again. The public webhook listener does not run workers.
+
 For a production build, run `bun run build`, then run `bun run start` and `bun run start:public` as separate processes. Both listeners bind to `127.0.0.1`. A later deployment phase will define proxy access.
 
-Run `bun run validate` before a commit. It runs type checks, lint, format checks, tests, and the production build. The configured database path, credentials, and executor are validated at process startup. The internal server opens the database and syncs the project file when one is configured. Relay does not call an external service at startup.
+Run `bun run validate` before a commit. It runs type checks, lint, format checks, tests, and the production build. The configured database path, credentials, and executor are validated at process startup. The internal server opens the database, syncs the project and integration files when they are configured, and starts the queue workers. Relay does not call an external service at startup.

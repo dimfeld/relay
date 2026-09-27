@@ -1,14 +1,13 @@
 import { loadConfig } from "./lib/server/config";
 import { openDatabase } from "./lib/server/db";
 import { log } from "./lib/server/logging";
-import { loadProjectDefinitions } from "./lib/server/projects/config";
-import { syncProjectCatalog } from "./lib/server/projects/catalog";
+import { syncConfiguredCatalogs } from "./lib/server/context";
 
 const config = loadConfig();
 const database = openDatabase(config.DATABASE_PATH);
 try {
-  const projects = loadProjectDefinitions(config.PROJECTS_CONFIG_PATH);
-  if (projects) syncProjectCatalog(database, projects, config.DEFAULT_EXECUTOR);
+  // Fail at startup, not on the first request, when a configuration file is not valid.
+  syncConfiguredCatalogs(database, config);
 } finally {
   database.close();
 }

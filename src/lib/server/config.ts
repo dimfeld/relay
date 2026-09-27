@@ -13,6 +13,9 @@ export const DEFAULT_RETENTION_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
  * about 36 minutes before a delivery becomes dead and needs a manual retry.
  */
 export const DEFAULT_DELIVERY_MAX_ATTEMPTS = 10;
+export const DEFAULT_WORKER_POLL_INTERVAL_MS = 1_000;
+/** Longer than a slow classification, including Jev and Luna retries after HTTP 429. */
+export const DEFAULT_WORKER_STALE_AFTER_MS = 5 * 60 * 1_000;
 
 export const SERVICE_CAPABILITIES = [
   "events:publish",
@@ -71,6 +74,7 @@ const schema = z
     INTERNAL_SERVICE_CREDENTIALS: credentials,
     INTERNAL_API_MAX_BODY_BYTES: z.coerce.number().int().positive().default(65_536),
     PROJECTS_CONFIG_PATH: nonEmpty.optional(),
+    INTEGRATIONS_CONFIG_PATH: nonEmpty.optional(),
     DELIVERY_MAX_ATTEMPTS: z.coerce
       .number()
       .int()
@@ -82,6 +86,16 @@ const schema = z
       .int()
       .positive()
       .default(DEFAULT_RETENTION_CHECK_INTERVAL_MS),
+    WORKER_POLL_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_WORKER_POLL_INTERVAL_MS),
+    WORKER_STALE_AFTER_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_WORKER_STALE_AFTER_MS),
     WAKE_NAME: nonEmpty.optional(),
     DEFAULT_EXECUTOR: z.enum(["codex", "claude"]),
     CODEX_EXECUTABLE: nonEmpty,

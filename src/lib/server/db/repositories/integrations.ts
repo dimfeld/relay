@@ -234,3 +234,23 @@ export function updateEventRoute<TConfig>(
   }
   return getEventRoute<TConfig>(db, id);
 }
+
+/** Disable every integration whose ID is not listed. */
+export function setIntegrationsEnabledExcept(db: Database, enabledIds: string[]): void {
+  disableExcept(db, "integrations", enabledIds);
+}
+
+/** Disable every event route whose ID is not listed. */
+export function setEventRoutesEnabledExcept(db: Database, enabledIds: string[]): void {
+  disableExcept(db, "event_routes", enabledIds);
+}
+
+function disableExcept(
+  db: Database,
+  table: "integrations" | "event_routes",
+  enabledIds: string[]
+): void {
+  const placeholders = enabledIds.map(() => "?").join(", ");
+  const filter = enabledIds.length ? ` AND id NOT IN (${placeholders})` : "";
+  db.query(`UPDATE ${table} SET enabled = 0 WHERE enabled = 1${filter}`).run(...enabledIds);
+}

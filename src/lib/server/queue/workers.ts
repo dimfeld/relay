@@ -49,19 +49,22 @@ export function createExecutionWorker<TPayload = unknown>(
   return makeWorker(db, "execution", handler, settings);
 }
 
+/** Start a worker for each queue that has a handler. */
 export function startWorkers<TPayload = unknown>(
   db: Database,
   handlers: {
     classification: QueueHandler<TPayload>;
     delivery: QueueHandler<TPayload>;
-    execution: QueueHandler<TPayload>;
+    execution?: QueueHandler<TPayload>;
   },
   settings: WorkerSettings
 ) {
   const workers = {
     classification: createClassificationWorker(db, handlers.classification, settings),
     delivery: createDeliveryWorker(db, handlers.delivery, settings),
-    execution: createExecutionWorker(db, handlers.execution, settings),
+    ...(handlers.execution && {
+      execution: createExecutionWorker(db, handlers.execution, settings),
+    }),
   };
   for (const worker of Object.values(workers)) worker.start();
 

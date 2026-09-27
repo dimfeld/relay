@@ -1,5 +1,5 @@
 import { hasCapability } from "../auth";
-import type { ServerContext } from "../context";
+import type { RequestContext } from "../context";
 import { eventEnvelopeSchema, publishEvent, requiredCapabilities } from "../events/internal";
 import { log } from "../logging";
 import { readBodyWithinLimit } from "../request";
@@ -7,7 +7,7 @@ import { authorize, errorResponse } from "./authorize";
 
 /** Handle POST /api/events on the internal listener. */
 export async function handlePublishEvent(
-  context: ServerContext,
+  context: RequestContext,
   request: Request,
   correlationId: string
 ): Promise<Response> {

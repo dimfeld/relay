@@ -14,7 +14,7 @@ import {
 } from "../src/lib/server/api/admin";
 import { handlePublishEvent } from "../src/lib/server/api/events";
 import { loadConfig } from "../src/lib/server/config";
-import type { ServerContext } from "../src/lib/server/context";
+import type { RequestContext } from "../src/lib/server/context";
 import { openDatabase } from "../src/lib/server/db";
 import { getDelivery } from "../src/lib/server/db/repositories/deliveries";
 import { createEvent, getEvent } from "../src/lib/server/db/repositories/events";
@@ -40,7 +40,7 @@ const credentials = {
 };
 
 let db: Database;
-let context: ServerContext;
+let context: RequestContext;
 
 beforeEach(() => {
   db = openDatabase(":memory:");

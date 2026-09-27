@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { AdminActionError } from "../admin-error";
 import type { ServiceIdentity } from "../auth";
-import type { ServerContext } from "../context";
+import type { RequestContext } from "../context";
 import { listAttemptsForEvent, listRecentAttempts } from "../db/repositories/attempts";
 import {
   getDelivery,
@@ -27,7 +27,7 @@ export type AdminLoader<T = unknown> = (db: Database, limit: number | undefined)
 
 /** Handle an admin GET request that needs the admin:read capability. */
 export function handleAdminRead(
-  context: ServerContext,
+  context: RequestContext,
   request: Request,
   load: AdminLoader
 ): Response {
@@ -49,7 +49,7 @@ export function handleAdminRead(
  * correction, or reclassification. It needs the admin:retry capability.
  */
 export async function handleAdminAction(
-  context: ServerContext,
+  context: RequestContext,
   request: Request,
   run: (db: Database, identity: ServiceIdentity) => unknown
 ): Promise<Response> {
