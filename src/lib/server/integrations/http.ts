@@ -60,37 +60,78 @@ export async function postJson({
   body,
   transport,
 }: JsonPostOptions): Promise<HttpResponse> {
+  return sendRequest(
+    integration,
+    {
+      method: "POST",
+      url: integrationUrl(integration, path),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Idempotency-Key": envelope.idempotencyKey,
+        "X-Correlation-ID": envelope.correlationId,
+      },
+      body: JSON.stringify(body),
+    },
+    envelope.actionType,
+    transport
+  );
+}
+
+export interface JsonGetOptions {
+  integration: Integration;
+  path: string;
+  correlationId: string;
+  transport: HttpTransport;
+}
+
+export async function getJson({
+  integration,
+  path,
+  correlationId,
+  transport,
+}: JsonGetOptions): Promise<HttpResponse> {
+  return sendRequest(
+    integration,
+    {
+      method: "GET",
+      url: integrationUrl(integration, path),
+      headers: { Accept: "application/json", "X-Correlation-ID": correlationId },
+    },
+    `GET ${path}`,
+    transport
+  );
+}
+
+function integrationUrl(integration: Integration, path: string): string {
   if (!integration.baseUrl) {
     throw new Error(`Integration "${integration.name}" has no base URL.`);
   }
-
   const baseUrl = integration.baseUrl.endsWith("/")
     ? integration.baseUrl
     : `${integration.baseUrl}/`;
-  const request: HttpRequest = {
-    method: "POST",
-    url: new URL(path, baseUrl).toString(),
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": envelope.idempotencyKey,
-      "X-Correlation-ID": envelope.correlationId,
-    },
-    body: JSON.stringify(body),
-  };
+  return new URL(path, baseUrl).toString();
+}
+
+async function sendRequest(
+  integration: Integration,
+  request: HttpRequest,
+  operation: string,
+  transport: HttpTransport
+): Promise<HttpResponse> {
   let response: HttpResponse;
   try {
     response = await transport(request);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new DeliveryError(
-      `Integration "${integration.name}" request failed for ${envelope.actionType}: ${reason}`,
+      `Integration "${integration.name}" request failed for ${operation}: ${reason}`,
       { transient: true }
     );
   }
   if (response.status < 200 || response.status >= 300) {
     throw new DeliveryError(
-      `Integration "${integration.name}" returned HTTP ${response.status} for ${envelope.actionType}.`,
+      `Integration "${integration.name}" returned HTTP ${response.status} for ${operation}.`,
       { transient: isTransientStatus(response.status), response }
     );
   }

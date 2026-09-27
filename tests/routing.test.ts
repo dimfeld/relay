@@ -8,6 +8,7 @@ import {
 } from "../src/lib/server/db/repositories/integrations";
 import { findDeliveryByIdempotencyKey } from "../src/lib/server/db/repositories/deliveries";
 import { openDatabase } from "../src/lib/server/db";
+import { createMailCategorySource } from "../src/lib/server/integrations/categories";
 import { createIntegrationRegistry } from "../src/lib/server/integrations/registry";
 import type { HttpRequest, HttpTransport } from "../src/lib/server/integrations/types";
 import { createDeliveryEnvelope } from "../src/lib/server/routing/envelope";
@@ -51,7 +52,7 @@ function makeRoute(
 }
 
 function requestBody(request: HttpRequest): Record<string, unknown> {
-  return JSON.parse(request.body) as Record<string, unknown>;
+  return JSON.parse(request.body!) as Record<string, unknown>;
 }
 
 describe("routing and owner adapters", () => {
@@ -108,17 +109,20 @@ describe("routing and owner adapters", () => {
       routeId: outcome.delivery.routeId,
       downstreamId: "mail-task-42",
     });
-    expect(request?.url).toBe("https://mail.test/api/tasks");
+    expect(request?.url).toBe("https://mail.test/api/todos");
     expect(request?.headers["X-Correlation-ID"]).toBe("correlation-task");
     expect(requestBody(request!)).toEqual({
       title: "Buy tea",
       notes: null,
       dueAt: null,
+      timeZone: null,
+      originalTimePhrase: null,
+      categoryId: null,
       sourceEventId: event.id,
     });
   });
 
-  test("sends Mail reminders with the owner fields and records the Mail reminder ID", async () => {
+  test("sends a Mail reminder as a todo with a due time and records the Mail todo ID", async () => {
     const mail = makeIntegration("Mail reminders", "mail", "https://mail.test");
     const event = makeEvent("event-reminder", "pebble.transcription", {});
     makeRoute(mail.id, { actionType: "reminder.create" });
@@ -138,6 +142,7 @@ describe("routing and owner adapters", () => {
       remindAt: "2026-09-27T08:00:00Z",
       timeZone: "Etc/UTC",
       originalTimePhrase: "tomorrow morning",
+      categoryId: "health",
     };
 
     const outcome = await service.routeAction(event, action);
@@ -148,14 +153,16 @@ describe("routing and owner adapters", () => {
     if (outcome.status !== "succeeded" || repeated.status !== "succeeded") return;
     expect(requests).toHaveLength(1);
     const request = requests[0]!;
-    expect(request.url).toBe("https://mail.test/reminders");
+    expect(request.url).toBe("https://mail.test/todos");
     expect(request.headers["Idempotency-Key"]).toBe(outcome.delivery.idempotencyKey);
     expect(repeated.delivery.idempotencyKey).toBe(outcome.delivery.idempotencyKey);
     expect(requestBody(request)).toEqual({
-      text: "Take medicine",
-      remindAt: "2026-09-27T08:00:00Z",
+      title: "Take medicine",
+      notes: null,
+      dueAt: "2026-09-27T08:00:00Z",
       timeZone: "Etc/UTC",
       originalTimePhrase: "tomorrow morning",
+      categoryId: "health",
       sourceEventId: event.id,
     });
     expect(outcome.delivery.response?.downstreamId).toBe("mail-reminder-8");
@@ -216,6 +223,7 @@ describe("routing and owner adapters", () => {
       title: "Garden",
       body: "Plant basil",
       topic: "garden",
+      categoryId: "cat-garden",
     });
     await service.routeAction(makeEvent("note-append", "pebble.transcription", {}), {
       type: "note.append",
@@ -232,6 +240,7 @@ describe("routing and owner adapters", () => {
       title: "Garden",
       body: "Plant basil",
       topic: "garden",
+      categoryId: "cat-garden",
       sourceEventId: "note-create",
     });
     expect(requestBody(requests[1]!)).toMatchObject({
@@ -240,6 +249,47 @@ describe("routing and owner adapters", () => {
       contextEventId: "note-create",
       sourceEventId: "note-append",
     });
+  });
+
+  test("reads categories from the one Mail integration that owns todos and notes", async () => {
+    const mail = makeIntegration("Mail", "mail", "https://mail.test/api");
+    const [taskRoute] = ["task.create", "reminder.create", "note.create"].map((actionType) =>
+      makeRoute(mail.id, { actionType })
+    );
+    const requests: HttpRequest[] = [];
+    const loadCategories = createMailCategorySource(db, async (request) => {
+      requests.push(request);
+      return { status: 200, body: { categories: [{ id: "cat-home", name: "Home" }] } };
+    });
+
+    expect(await loadCategories("correlation-1")).toEqual([{ id: "cat-home", name: "Home" }]);
+    expect(requests).toEqual([
+      {
+        method: "GET",
+        url: "https://mail.test/api/categories",
+        headers: { Accept: "application/json", "X-Correlation-ID": "correlation-1" },
+      },
+    ]);
+
+    // Category IDs belong to one owner, so a split route has no categories to offer.
+    const other = makeIntegration("Other mail", "mail", "https://other.test");
+    updateEventRoute(db, taskRoute!.id, { integrationId: other.id });
+    expect(await loadCategories("correlation-2")).toEqual([]);
+    expect(requests).toHaveLength(1);
+  });
+
+  test("rejects a Mail categories response with the wrong shape", async () => {
+    const mail = makeIntegration("Mail", "mail", "https://mail.test");
+    for (const actionType of ["task.create", "reminder.create", "note.create"]) {
+      makeRoute(mail.id, { actionType });
+    }
+    const loadCategories = createMailCategorySource(db, async () => ({
+      status: 200,
+      body: [{ id: "cat-home", name: "Home" }],
+    }));
+    await expect(loadCategories("correlation-1")).rejects.toThrow(
+      'Mail categories response from "Mail" is not valid.'
+    );
   });
 
   test("uses the same key for repeated delivery and skips the adapter after success", async () => {
@@ -301,7 +351,7 @@ describe("routing and owner adapters", () => {
     expect(outcome.status).toBe("succeeded");
     if (outcome.status !== "succeeded") return;
     expect(outcome.delivery.routeId).toBe(exactRoute.id);
-    expect(url).toBe("https://exact.test/tasks");
+    expect(url).toBe("https://exact.test/todos");
   });
 
   test("a route change sends the next event to the new configured integration", async () => {
@@ -331,8 +381,8 @@ describe("routing and owner adapters", () => {
     const second = await service.routeAction(event, action);
 
     expect(requests.map((request) => request.url)).toEqual([
-      "https://first.test/tasks",
-      "https://second.test/tasks",
+      "https://first.test/todos",
+      "https://second.test/todos",
     ]);
     expect(requests[0]?.headers["Idempotency-Key"]).not.toBe(
       requests[1]?.headers["Idempotency-Key"]

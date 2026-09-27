@@ -53,13 +53,20 @@ export const extractionSchemas = {
 
 export type Extraction<T extends ExtractableActionType> = z.infer<(typeof extractionSchemas)[T]>;
 
-export const taskCreateAction = extractionSchemas["task.create"];
+/*
+ * Jev selects the category, not Luna, so it is not in the extraction schemas. It is optional so
+ * that actions stored or corrected without a category stay valid.
+ */
+const categoryId = text.nullable().optional();
+
+export const taskCreateAction = extractionSchemas["task.create"].extend({ categoryId });
 
 export const reminderCreateAction = extractionSchemas["reminder.create"].extend({
   remindAt: dateTime,
+  categoryId,
 });
 
-export const noteCreateAction = extractionSchemas["note.create"];
+export const noteCreateAction = extractionSchemas["note.create"].extend({ categoryId });
 
 export const noteAppendAction = extractionSchemas["note.append"].extend({
   targetId: text,

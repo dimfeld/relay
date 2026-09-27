@@ -221,6 +221,42 @@ describe("classification worker", () => {
     });
   });
 
+  test("offers Mail categories to Jev and classifies without them when the lookup fails", async () => {
+    const { db, event, settings, advance } = setup("Buy printer filament");
+    const dispatched: Action[] = [];
+    const jev = fakeJev({ ...baseAnswers, action_type: "task", category: "category_1" });
+    const warnings: string[] = [];
+    let lookups = 0;
+    const handler = createClassificationHandler({
+      db,
+      jev,
+      luna: fakeLuna({ type: "task.create", title: "Buy filament", notes: null, dueAt: null }),
+      loadCategories: async (correlationId) => {
+        expect(correlationId).toBe(event.id);
+        if (++lookups > 1) throw new Error("Mail is down");
+        return [{ id: "cat-hobby", name: "Hobby" }];
+      },
+      log: (level, message) => void (level === "warn" && warnings.push(message)),
+      onClassified: (action) => void dispatched.push(action),
+    });
+
+    await createClassificationWorker(db, handler, settings).runOnce();
+    enqueueJob(db, {
+      type: "classify",
+      queue: "classification",
+      payload: { eventId: event.id },
+      eventId: event.id,
+      maxAttempts: 3,
+      availableAt: "2026-09-25T16:00:00.000Z",
+    });
+    advance();
+    await createClassificationWorker(db, handler, settings).runOnce();
+
+    expect(dispatched).toMatchObject([{ categoryId: "cat-hobby" }, { categoryId: null }]);
+    expect(jev.requests[1].questions).not.toHaveProperty("category");
+    expect(warnings).toEqual(["category lookup failed; classifying without categories"]);
+  });
+
   test("never dispatches an invalid result", async () => {
     const { db, event, settings } = setup("Tim, run the deploy script in Gizmo");
     const dispatched: Action[] = [];

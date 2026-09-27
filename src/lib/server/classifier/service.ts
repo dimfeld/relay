@@ -4,6 +4,7 @@ import { preprocess, type PreprocessedInput, type Signals } from "./preprocess";
 import {
   actionTypeForLabel,
   buildJevRequest,
+  categoryForLabel,
   executorForLabel,
   noteTargetForLabel,
   reminderTimeStated,
@@ -20,6 +21,7 @@ import {
 import {
   ProviderError,
   type CallMetadata,
+  type Category,
   type ContextItem,
   type JevAnswer,
   type JevClassifier,
@@ -41,6 +43,8 @@ export interface ClassifyInput {
   wakeName?: string;
   projects: RegisteredProject[];
   context: ContextItem[];
+  /** Categories Jev can choose for a task, reminder, or new note. */
+  categories: Category[];
 }
 
 export interface JevCallRecord extends CallMetadata {
@@ -139,9 +143,10 @@ export async function classifyCapture(
     return { status: "needs_review", actionType, record };
   };
 
-  const { request, noteTargets } = buildJevRequest({
+  const { request, noteTargets, categoryLabels } = buildJevRequest({
     preprocessed,
     context: input.context,
+    categories: input.categories,
     referenceTime: input.referenceTime,
     timeZone: input.timeZone,
   });
@@ -219,6 +224,10 @@ export async function classifyCapture(
     executor: executorForLabel(
       answers.coding_executor?.type === "choice" ? answers.coding_executor.choice : undefined
     ),
+    category: categoryForLabel(
+      answers.category?.type === "choice" ? answers.category.choice : undefined,
+      categoryLabels
+    ),
   });
   if ("reason" in built) return needsReview(actionType, built.reason);
 
@@ -259,12 +268,17 @@ function buildAction(
     projects: RegisteredProject[];
     noteTarget: ContextItem | null;
     executor: "codex" | "claude" | null;
+    category: Category | null;
   }
 ): { action: unknown } | { reason: string } {
+  const categoryId = options.category?.id ?? null;
   switch (fields.type) {
+    case "task.create":
+    case "note.create":
+      return { action: { ...fields, categoryId } };
     case "reminder.create":
       if (!fields.remindAt) return { reason: "reminder time could not be resolved" };
-      return { action: fields };
+      return { action: { ...fields, categoryId } };
     case "note.append":
       return {
         action: {

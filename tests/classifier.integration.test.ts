@@ -17,6 +17,7 @@ describe.skipIf(!enabled)("real Jev and Luna providers", () => {
         referenceTime: new Date().toISOString(),
         projects: [],
         context: [],
+        categories: [],
       },
       adapters
     );

@@ -1,6 +1,6 @@
 import type { PreprocessedInput } from "./preprocess";
 import type { ActionType } from "./schemas";
-import type { ContextItem, ExecutorProvider, JevRequest } from "./types";
+import type { Category, ContextItem, ExecutorProvider, JevRequest } from "./types";
 
 /*
  * Every question the pipeline needs is asked to Jev in one request. Answers that do not apply
@@ -38,9 +38,13 @@ const REMINDER_TIME_OPTIONS = {
   missing: "The capture does not say when the reminder should happen.",
 } as const;
 
+const NO_CATEGORY_LABEL = "none";
+const NO_CATEGORY_DESCRIPTION = "No category clearly fits, or it is unclear which one fits.";
+
 export interface QuestionInput {
   preprocessed: PreprocessedInput;
   context: ContextItem[];
+  categories: Category[];
   referenceTime: string;
   timeZone?: string;
 }
@@ -49,11 +53,14 @@ export interface BuiltQuestions {
   request: JevRequest;
   /** Note target labels mapped to the context item they identify. */
   noteTargets: Map<string, ContextItem>;
+  /** Category labels mapped to the category they identify. */
+  categoryLabels: Map<string, Category>;
 }
 
 export function buildJevRequest({
   preprocessed,
   context,
+  categories,
   referenceTime,
   timeZone,
 }: QuestionInput): BuiltQuestions {
@@ -95,6 +102,21 @@ export function buildJevRequest({
       options: Object.fromEntries([...noteTargets].map(([label, item]) => [label, item.text])),
     };
   }
+  const categoryLabels = new Map(
+    categories.map((category, index) => [`category_${index + 1}`, category])
+  );
+  if (categoryLabels.size) {
+    questions.category = {
+      type: "choice",
+      instructions: "If this is a task, reminder, or new note, which category fits it?",
+      options: {
+        ...Object.fromEntries(
+          [...categoryLabels].map(([label, category]) => [label, category.name])
+        ),
+        [NO_CATEGORY_LABEL]: NO_CATEGORY_DESCRIPTION,
+      },
+    };
+  }
 
   const state = {
     capture: preprocessed.text,
@@ -108,7 +130,7 @@ export function buildJevRequest({
     })),
   };
 
-  return { request: { state, questions }, noteTargets };
+  return { request: { state, questions }, noteTargets, categoryLabels };
 }
 
 export function actionTypeForLabel(label: string): ActionType | null {
@@ -128,4 +150,11 @@ export function noteTargetForLabel(
   noteTargets: Map<string, ContextItem>
 ): ContextItem | null {
   return label ? (noteTargets.get(label) ?? null) : null;
+}
+
+export function categoryForLabel(
+  label: string | undefined,
+  categoryLabels: Map<string, Category>
+): Category | null {
+  return label ? (categoryLabels.get(label) ?? null) : null;
 }

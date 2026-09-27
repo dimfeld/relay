@@ -144,14 +144,17 @@ describe("corrections", () => {
     });
 
     expect(taskRequests).toHaveLength(1);
-    expect(taskRequests[0].url).toBe("https://mail.test/tasks");
+    expect(taskRequests[0].url).toBe("https://mail.test/todos");
     expect(taskRequests[0].headers["Idempotency-Key"]).toBe(
       createIdempotencyKey(event.id, "task.create", mail.id, "correction-1")
     );
-    expect(JSON.parse(taskRequests[0].body)).toEqual({
+    expect(JSON.parse(taskRequests[0].body!)).toEqual({
       title: "Buy oat milk",
       notes: null,
       dueAt: null,
+      timeZone: null,
+      originalTimePhrase: null,
+      categoryId: null,
       sourceEventId: event.id,
     });
 

@@ -29,6 +29,7 @@ function input(text: string, overrides: Partial<ClassifyInput> = {}): ClassifyIn
     wakeName: "Tim",
     projects,
     context: [],
+    categories: [],
     ...overrides,
   };
 }
@@ -42,7 +43,13 @@ describe("classifyCapture", () => {
       text: "Add buy printer filament to my list",
       answers: { action_type: "task" },
       luna: { type: "task.create", title: "Buy printer filament", notes: null, dueAt: null },
-      expected: { type: "task.create", title: "Buy printer filament", notes: null, dueAt: null },
+      expected: {
+        type: "task.create",
+        title: "Buy printer filament",
+        notes: null,
+        dueAt: null,
+        categoryId: null,
+      },
     },
     {
       name: "reminder.create",
@@ -61,6 +68,7 @@ describe("classifyCapture", () => {
         remindAt: "2026-09-26T09:00:00-07:00",
         timeZone: "America/Los_Angeles",
         originalTimePhrase: "tomorrow at 9am",
+        categoryId: null,
       },
     },
     {
@@ -78,6 +86,7 @@ describe("classifyCapture", () => {
         title: null,
         body: "A magnetic mount for the camera",
         topic: null,
+        categoryId: null,
       },
     },
     {
@@ -184,6 +193,52 @@ describe("classifyCapture", () => {
       capture: "Also add a hinge",
       recentContext: [{ label: "context_1" }],
     });
+  });
+
+  test("asks Jev to choose a category and sets the chosen category ID", async () => {
+    const categories = [
+      { id: "cat-home", name: "Home" },
+      { id: "cat-work", name: "Work" },
+    ];
+    const jev = fakeJev({ ...baseAnswers, action_type: "task", category: "category_2" });
+    const result = await classifyCapture(input("Send the quarterly report", { categories }), {
+      jev,
+      luna: fakeLuna({
+        type: "task.create",
+        title: "Send the quarterly report",
+        notes: null,
+        dueAt: null,
+      }),
+    });
+
+    expect(jev.requests[0].questions.category).toEqual({
+      type: "choice",
+      instructions: "If this is a task, reminder, or new note, which category fits it?",
+      options: {
+        category_1: "Home",
+        category_2: "Work",
+        none: "No category clearly fits, or it is unclear which one fits.",
+      },
+    });
+    expect(result).toMatchObject({ status: "classified", action: { categoryId: "cat-work" } });
+  });
+
+  test("sets no category when Jev chooses none or there are no categories", async () => {
+    const categories = [{ id: "cat-home", name: "Home" }];
+    const luna = { type: "note.create", title: null, body: "Some thought", topic: null };
+    const unclear = await classifyCapture(input("Some thought", { categories }), {
+      jev: fakeJev({ ...baseAnswers, action_type: "new_note", category: "none" }),
+      luna: fakeLuna(luna),
+    });
+    expect(unclear).toMatchObject({ status: "classified", action: { categoryId: null } });
+
+    const jev = fakeJev({ ...baseAnswers, action_type: "new_note" });
+    const uncategorized = await classifyCapture(input("Some thought"), {
+      jev,
+      luna: fakeLuna(luna),
+    });
+    expect(jev.requests[0].questions).not.toHaveProperty("category");
+    expect(uncategorized).toMatchObject({ status: "classified", action: { categoryId: null } });
   });
 
   test("repairs invalid fields once", async () => {

@@ -17,10 +17,10 @@ export interface OwnerDeliveryResult {
 }
 
 export interface HttpRequest {
-  method: "POST";
+  method: "GET" | "POST";
   url: string;
   headers: Record<string, string>;
-  body: string;
+  body?: string;
 }
 
 export interface HttpResponse {

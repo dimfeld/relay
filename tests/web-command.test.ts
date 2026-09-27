@@ -309,8 +309,8 @@ test("web and Pebble captures classify and route the same text with equal time a
   expect(delivered).toHaveLength(2);
   expect(delivered[0]).toHaveLength(1);
   expect(delivered[1]).toHaveLength(1);
-  expect(JSON.parse(delivered[0][0].body)).toMatchObject({ title: "Buy tea", notes: null });
-  expect(JSON.parse(delivered[1][0].body)).toMatchObject({ title: "Buy tea", notes: null });
+  expect(JSON.parse(delivered[0][0].body!)).toMatchObject({ title: "Buy tea", notes: null });
+  expect(JSON.parse(delivered[1][0].body!)).toMatchObject({ title: "Buy tea", notes: null });
   expect(webDetail.deliveries[0].delivery).toMatchObject({
     status: "succeeded",
     routeId: "task-route",

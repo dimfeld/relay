@@ -12,7 +12,8 @@ import { selectRecentContext } from "./context";
 import type { RateLimitRetryOptions } from "./retry";
 import type { Action } from "./schemas";
 import { classifyCapture, type ClassificationRecord } from "./service";
-import type { ContextItem, JevClassifier, LunaExtractor } from "./types";
+import type { Category, ContextItem, JevClassifier, LunaExtractor } from "./types";
+import type { CategorySource } from "../integrations/categories";
 import { correlationIdForEvent, log as defaultLog } from "../logging";
 import type { OperationalMetrics } from "../logging/metrics";
 import { operationalMetrics } from "../logging/metrics";
@@ -34,6 +35,11 @@ export interface ClassificationHandlerOptions {
   contextMaxAgeMinutes?: number;
   /** Override the default bounded recent-capture selector. */
   selectContext?: (db: Database, event: IncomingEvent) => ContextItem[];
+  /**
+   * Categories Jev can choose for tasks, reminders, and notes. A category is optional, so when
+   * the source fails the capture is classified without one.
+   */
+  loadCategories?: CategorySource;
   /** Called only with a validated action, after the classification is stored. */
   onClassified?: (action: Action, classification: Classification) => void | Promise<void>;
   log?: typeof defaultLog;
@@ -64,6 +70,7 @@ export function createClassificationHandler({
   contextLimit = DEFAULT_CONTEXT_LIMIT,
   contextMaxAgeMinutes = DEFAULT_CONTEXT_MAX_AGE_MINUTES,
   selectContext,
+  loadCategories,
   onClassified,
   log = defaultLog,
   metrics = operationalMetrics,
@@ -105,6 +112,18 @@ export function createClassificationHandler({
             maxAgeMinutes: contextMaxAgeMinutes,
           });
       selectedContextIds = context.map((item) => item.eventId);
+      let categories: Category[] = [];
+      try {
+        categories = (await loadCategories?.(correlationId)) ?? [];
+      } catch (error) {
+        log("warn", "category lookup failed; classifying without categories", {
+          stage: "classification",
+          correlationId,
+          eventId: event.id,
+          jobId: job.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       result = await classifyCapture(
         {
           text: event.text ?? "",
@@ -113,6 +132,7 @@ export function createClassificationHandler({
           wakeName,
           projects: listRegisteredProjects(db),
           context,
+          categories,
         },
         { jev, luna, retry }
       );

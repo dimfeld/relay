@@ -9,6 +9,12 @@ export interface RegisteredProject {
   aliases: string[];
 }
 
+/** A category that the owner of tasks, reminders, and notes lets Relay assign. */
+export interface Category {
+  id: string;
+  name: string;
+}
+
 /** A recent capture selected for classification, with its downstream note ID when known. */
 export interface ContextItem {
   eventId: string;

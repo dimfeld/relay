@@ -1,23 +1,29 @@
+import { z } from "zod";
+import type { Category } from "../classifier/types";
 import type { Integration } from "../db/repositories/integrations";
-import { fetchTransport, postJson, requireObjectId } from "./http";
+import { fetchTransport, getJson, postJson, requireObjectId } from "./http";
 import type { DeliveryEnvelope, HttpTransport, OwnerAdapter } from "./types";
 
+/** Mail has one todo type. A reminder is a todo with a due time, so both actions post to `todos`. */
 const MAIL_ENDPOINTS = {
-  "task.create": "tasks",
-  "reminder.create": "reminders",
+  "task.create": "todos",
+  "reminder.create": "todos",
   "note.create": "notes",
   "note.append": "notes/append",
 } as const;
+const MAIL_CATEGORIES_ENDPOINT = "categories";
 const MAIL_RESPONSE_ID_FIELD = "id";
 
+const categoriesResponseSchema = z.object({
+  categories: z.array(z.object({ id: z.string().trim().min(1), name: z.string().trim().min(1) })),
+});
+
 /**
- * Mail's request field names and endpoints are provisional until its receiver contract is
- * agreed. Keep the mapping here so that contract changes stay within this adapter.
+ * Map Relay actions to Mail requests. docs/external-app-changes.md has the full Mail contract.
+ * Keep the mapping here so that contract changes stay within this adapter.
  *
- * `reminder.create` posts `{ text, remindAt, timeZone, originalTimePhrase, sourceEventId }`
- * to `reminders` with the delivery's stable `Idempotency-Key` header, and Relay records the
- * `id` field of the response as the Mail reminder ID. Mail owns scheduling and surfacing
- * the reminder; Relay only creates it and never schedules the notification itself.
+ * Mail owns scheduling and surfacing a todo's due time; Relay only creates the todo and never
+ * schedules the notification itself.
  */
 function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown } {
   const payload = envelope.payload;
@@ -34,8 +40,11 @@ function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown 
         path: MAIL_ENDPOINTS["task.create"],
         body: {
           title: action.title,
-          notes: action.notes,
-          dueAt: action.dueAt,
+          notes: action.notes ?? null,
+          dueAt: action.dueAt ?? null,
+          timeZone: null,
+          originalTimePhrase: null,
+          categoryId: action.categoryId ?? null,
           sourceEventId: envelope.eventId,
         },
       };
@@ -43,10 +52,12 @@ function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown 
       return {
         path: MAIL_ENDPOINTS["reminder.create"],
         body: {
-          text: action.text,
-          remindAt: action.remindAt,
-          timeZone: action.timeZone,
-          originalTimePhrase: action.originalTimePhrase,
+          title: action.text,
+          notes: null,
+          dueAt: action.remindAt,
+          timeZone: action.timeZone ?? null,
+          originalTimePhrase: action.originalTimePhrase ?? null,
+          categoryId: action.categoryId ?? null,
           sourceEventId: envelope.eventId,
         },
       };
@@ -54,9 +65,10 @@ function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown 
       return {
         path: MAIL_ENDPOINTS["note.create"],
         body: {
-          title: action.title,
+          title: action.title ?? null,
           body: action.body,
-          topic: action.topic,
+          topic: action.topic ?? null,
+          categoryId: action.categoryId ?? null,
           sourceEventId: envelope.eventId,
         },
       };
@@ -73,6 +85,25 @@ function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown 
     default:
       throw new Error(`Mail does not support action type ${envelope.actionType}.`);
   }
+}
+
+/** Read the categories that Mail lets Relay assign to todos and notes. */
+export async function fetchMailCategories(
+  integration: Integration,
+  correlationId: string,
+  transport: HttpTransport = fetchTransport
+): Promise<Category[]> {
+  const response = await getJson({
+    integration,
+    path: MAIL_CATEGORIES_ENDPOINT,
+    correlationId,
+    transport,
+  });
+  const parsed = categoriesResponseSchema.safeParse(response.body);
+  if (!parsed.success) {
+    throw new Error(`Mail categories response from "${integration.name}" is not valid.`);
+  }
+  return parsed.data.categories;
 }
 
 export function createMailAdapter(transport: HttpTransport = fetchTransport): OwnerAdapter {
