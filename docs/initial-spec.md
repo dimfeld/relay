@@ -30,7 +30,7 @@ record result
 Examples:
 - “Remind me tomorrow morning to call the dentist.” → reminder.create → Mail
 - “Pick up soldering tips.” → task.create → Mail
-- “Coffee pourer idea: make the reservoir removable.” → note.create → OmniApp (or a future notes owner)
+- “Coffee pourer idea: make the reservoir removable.” → note.create → Mail
 - “Also make the mounting plate removable.” → note.append → previous note, when context supports it
 ### 3.2 Cross-application events
 Applications publish structured events to the Hub instead of integrating directly with one another. The Hub resolves routes and performs durable delivery.
@@ -58,8 +58,8 @@ AttentionItem {
 ```
 The actual persistence model may use separate tables. The important requirement is a unified UI abstraction supporting shared operations such as done, snooze, schedule, archive, and open.
 ## 5. Notes and Reference Data
-General notes should not be forced into the Mail client solely to avoid another interface. Notes are primarily reference material, not attention items. In the near term, OmniApp is a reasonable owner for lightweight notes and arbitrary personal reference objects because it is already the general toolbox application.
-Relay should treat note ownership as a route, not as a hard-coded architectural assumption. A future dedicated notes service could replace OmniApp without changing the capture pipeline.
+The Mail client owns general notes. Notes are primarily reference material, not attention items. OmniApp owns structured reference objects such as packages.
+Relay should treat note ownership as a route, not as a hard-coded architectural assumption. A future dedicated notes service could replace Mail as the notes owner without changing the capture pipeline.
 ## 6. Relay Responsibilities
 - Accept public webhook inputs from Pebble and future approved sources.
 - Persist the exact original payload before interpretation.
@@ -274,8 +274,8 @@ workers/
 - Normalized voice capture events
 - Task / reminder / note / note continuation / command / unknown classification
 - Bounded recent-context selection
-- Mail adapter for task and reminder creation
-- OmniApp adapter for package events and optionally notes/reference captures
+- Mail adapter for task, reminder, and note creation
+- OmniApp adapter for package events
 - Generic internal event publishing API
 - Durable delivery queue with retry/idempotency
 - Registered project catalog
@@ -305,11 +305,11 @@ workers/
 
 ## Reference Tables
 
-> Core product principle: Relay is infrastructure, not a fourth daily-use application. Mail is the personal attention surface, OmniApp owns structured/reference utility data, Tim owns planned project work and longer-running agent workflows, and Integration Hub connects them.
+> Core product principle: Relay is infrastructure, not a fourth daily-use application. Mail is the personal attention surface and owns notes, OmniApp owns structured/reference utility data, Tim owns planned project work and longer-running agent workflows, and Integration Hub connects them.
 
 | Application | Owns | Typical user interaction |
 | --- | --- | --- |
-| Mail client | Attention items: email, to-dos, reminders, snoozed/future attention | Frequent / daily |
+| Mail client | Attention items: email, to-dos, reminders, snoozed/future attention; general notes | Frequent / daily |
 | OmniApp | Structured personal utility and reference data such as packages, trackers, lists, devices, lightweight reference objects | As needed |
 | Tim | Projects, planned coding work, software-factory workflows, multi-step agent work | Focused project work |
 | Relay | Capture, normalization, classification, routing, authorization, delivery, audit/debugging | Occasional admin/inspection |

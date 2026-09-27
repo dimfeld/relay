@@ -4,8 +4,6 @@ import type { DeliveryEnvelope, HttpTransport, OwnerAdapter } from "./types";
 
 const OMNIAPP_ENDPOINTS = {
   "package.detected": "packages/detected",
-  "note.create": "notes",
-  "note.append": "notes/append",
 } as const;
 const OMNIAPP_RESPONSE_ID_FIELD = "id";
 
@@ -27,26 +25,6 @@ function omniAppRequest(envelope: DeliveryEnvelope): { path: string; body: unkno
       return {
         path: OMNIAPP_ENDPOINTS["package.detected"],
         body: { ...action, sourceEventId: envelope.eventId },
-      };
-    case "note.create":
-      return {
-        path: OMNIAPP_ENDPOINTS["note.create"],
-        body: {
-          title: action.title,
-          body: action.body,
-          topic: action.topic,
-          sourceEventId: envelope.eventId,
-        },
-      };
-    case "note.append":
-      return {
-        path: OMNIAPP_ENDPOINTS["note.append"],
-        body: {
-          body: action.body,
-          targetId: action.targetId,
-          contextEventId: action.contextEventId,
-          sourceEventId: envelope.eventId,
-        },
       };
     default:
       throw new Error(`OmniApp does not support action type ${envelope.actionType}.`);

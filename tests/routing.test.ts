@@ -196,17 +196,17 @@ describe("routing and owner adapters", () => {
     });
   });
 
-  test("sends optional note actions to OmniApp", async () => {
-    const omni = makeIntegration("OmniApp notes", "omniapp", "https://omni.test");
-    makeRoute(omni.id, { actionType: "note.create" });
-    makeRoute(omni.id, { actionType: "note.append" });
+  test("sends note actions to Mail", async () => {
+    const mail = makeIntegration("Mail notes", "mail", "https://mail.test");
+    makeRoute(mail.id, { actionType: "note.create" });
+    makeRoute(mail.id, { actionType: "note.append" });
     const requests: HttpRequest[] = [];
     const service = createRoutingService({
       db,
       registry: createIntegrationRegistry({
-        omniAppTransport: async (request) => {
+        mailTransport: async (request) => {
           requests.push(request);
-          return { status: 200, body: { id: `omni-note-${requests.length}` } };
+          return { status: 200, body: { id: `mail-note-${requests.length}` } };
         },
       }),
     });
@@ -220,13 +220,13 @@ describe("routing and owner adapters", () => {
     await service.routeAction(makeEvent("note-append", "pebble.transcription", {}), {
       type: "note.append",
       body: "Use the south bed",
-      targetId: "omni-note-1",
+      targetId: "mail-note-1",
       contextEventId: "note-create",
     });
 
     expect(requests.map((request) => request.url)).toEqual([
-      "https://omni.test/notes",
-      "https://omni.test/notes/append",
+      "https://mail.test/notes",
+      "https://mail.test/notes/append",
     ]);
     expect(requestBody(requests[0]!)).toMatchObject({
       title: "Garden",
@@ -236,7 +236,7 @@ describe("routing and owner adapters", () => {
     });
     expect(requestBody(requests[1]!)).toMatchObject({
       body: "Use the south bed",
-      targetId: "omni-note-1",
+      targetId: "mail-note-1",
       contextEventId: "note-create",
       sourceEventId: "note-append",
     });

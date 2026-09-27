@@ -5,6 +5,8 @@ import type { DeliveryEnvelope, HttpTransport, OwnerAdapter } from "./types";
 const MAIL_ENDPOINTS = {
   "task.create": "tasks",
   "reminder.create": "reminders",
+  "note.create": "notes",
+  "note.append": "notes/append",
 } as const;
 const MAIL_RESPONSE_ID_FIELD = "id";
 
@@ -45,6 +47,26 @@ function mailRequest(envelope: DeliveryEnvelope): { path: string; body: unknown 
           remindAt: action.remindAt,
           timeZone: action.timeZone,
           originalTimePhrase: action.originalTimePhrase,
+          sourceEventId: envelope.eventId,
+        },
+      };
+    case "note.create":
+      return {
+        path: MAIL_ENDPOINTS["note.create"],
+        body: {
+          title: action.title,
+          body: action.body,
+          topic: action.topic,
+          sourceEventId: envelope.eventId,
+        },
+      };
+    case "note.append":
+      return {
+        path: MAIL_ENDPOINTS["note.append"],
+        body: {
+          body: action.body,
+          targetId: action.targetId,
+          contextEventId: action.contextEventId,
           sourceEventId: envelope.eventId,
         },
       };

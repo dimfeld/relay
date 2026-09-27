@@ -11,13 +11,13 @@ This document records work outside the Relay repository. The Relay tim plans cov
 
 - Accept Relay `task.create` requests and create Mail-owned tasks. Return the Mail task ID. Honor a stable Relay idempotency key so delivery retries do not create duplicate tasks.
 - Accept Relay `reminder.create` requests at `POST <mail base URL>/reminders` with the JSON body `{ text, remindAt, timeZone, originalTimePhrase, sourceEventId }` and the `Idempotency-Key` header. Mail must store, schedule, and surface the reminder. Return the Mail reminder ID in the response `id` field and honor the idempotency key so retries do not create duplicate reminders. Relay must not schedule the user-facing notification. Live proof that a reminder fires while Relay is stopped is Mail's work.
+- Accept Relay `note.create` requests at `POST <mail base URL>/notes` with the JSON body `{ title, body, topic, sourceEventId }`, and `note.append` requests at `POST <mail base URL>/notes/append` with the JSON body `{ body, targetId, contextEventId, sourceEventId }`. Send the `Idempotency-Key` header with both. Mail owns the notes. Return the Mail note ID in the response `id` field and honor the idempotency key so retries do not create duplicate notes or duplicate appends.
 - Publish Mail-owned `package.detected` events to Relay's internal `POST /api/events` when package data needs delivery to OmniApp. Send `Authorization: Bearer <mail token>`, `source: "mail"`, and a stable `sourceEventId` or `Idempotency-Key` header. Relay configures the Mail service identity with only the `events:publish` capability.
 - Define the exact request and response fields with Relay before a live integration test. The Relay plans can use local fake Mail endpoints until this contract is available.
 
 ## OmniApp
 
 - Accept `package.detected` deliveries from Relay and create or update the OmniApp-owned package record. Return its object ID and honor Relay's idempotency key.
-- If OmniApp is selected as the notes owner, accept `note.create` and `note.append`, return the owned note ID, and honor idempotency keys. Confirm note ownership before Relay enables these routes.
 - If OmniApp publishes structured events to Relay, use its own service token and `source: "omniapp"`. Relay gives the OmniApp identity `events:publish`.
 - Define the exact request and response fields with Relay before a live integration test. The Relay plans can use local fake OmniApp endpoints until this contract is available.
 

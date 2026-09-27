@@ -35,8 +35,8 @@ import { fakeJev, fakeLuna } from "./classifier-fakes";
 let db: Database;
 let current: Date;
 let mail: Integration;
-let mailRequests: HttpRequest[];
-let omniRequests: HttpRequest[];
+let taskRequests: HttpRequest[];
+let noteRequests: HttpRequest[];
 let routing: RoutingService;
 let event: IncomingEvent;
 let classificationWorker: ReturnType<typeof createClassificationWorker>;
@@ -47,8 +47,8 @@ const taskFields = { title: "Buy oat milk", notes: "", dueAt: "" };
 beforeEach(async () => {
   db = openDatabase(":memory:");
   current = new Date("2026-09-26T12:00:00.000Z");
-  mailRequests = [];
-  omniRequests = [];
+  taskRequests = [];
+  noteRequests = [];
 
   mail = createIntegration(db, {
     name: "Mail",
@@ -57,24 +57,18 @@ beforeEach(async () => {
     config: {},
   });
   createEventRoute(db, { actionType: "task.create", integrationId: mail.id, config: {} });
-  const omni = createIntegration(db, {
-    name: "OmniApp",
-    kind: "omniapp",
-    baseUrl: "https://omni.test",
-    config: {},
-  });
-  createEventRoute(db, { actionType: "note.create", integrationId: omni.id, config: {} });
+  createEventRoute(db, { actionType: "note.create", integrationId: mail.id, config: {} });
 
   routing = createRoutingService({
     db,
     registry: createIntegrationRegistry({
       mailTransport: async (request) => {
-        mailRequests.push(request);
-        return { status: 201, body: { id: `task-${mailRequests.length}` } };
-      },
-      omniAppTransport: async (request) => {
-        omniRequests.push(request);
-        return { status: 201, body: { id: `note-${omniRequests.length}` } };
+        if (request.url.startsWith("https://mail.test/notes")) {
+          noteRequests.push(request);
+          return { status: 201, body: { id: `note-${noteRequests.length}` } };
+        }
+        taskRequests.push(request);
+        return { status: 201, body: { id: `task-${taskRequests.length}` } };
       },
     }),
     log: createLogger(() => {}),
@@ -129,7 +123,7 @@ function correctToTask(attemptId = "correction-1", fields: Record<string, string
 
 describe("corrections", () => {
   test("correct a note to a task, dispatch it to Mail once, and keep the original", async () => {
-    expect(omniRequests).toHaveLength(1);
+    expect(noteRequests).toHaveLength(1);
     const [original] = listClassificationsForEvent(db, event.id);
     expect(original).toMatchObject({ actionType: "note.create", provider: "fake-typesafe" });
 
@@ -149,12 +143,12 @@ describe("corrections", () => {
       },
     });
 
-    expect(mailRequests).toHaveLength(1);
-    expect(mailRequests[0].url).toBe("https://mail.test/tasks");
-    expect(mailRequests[0].headers["Idempotency-Key"]).toBe(
+    expect(taskRequests).toHaveLength(1);
+    expect(taskRequests[0].url).toBe("https://mail.test/tasks");
+    expect(taskRequests[0].headers["Idempotency-Key"]).toBe(
       createIdempotencyKey(event.id, "task.create", mail.id, "correction-1")
     );
-    expect(JSON.parse(mailRequests[0].body)).toEqual({
+    expect(JSON.parse(taskRequests[0].body)).toEqual({
       title: "Buy oat milk",
       notes: null,
       dueAt: null,
@@ -165,8 +159,8 @@ describe("corrections", () => {
     const repeat = await correctToTask();
     expect(repeat.duplicate).toBe(true);
     expect(repeat.classification.id).toBe(result.classification.id);
-    expect(mailRequests).toHaveLength(1);
-    expect(omniRequests).toHaveLength(1);
+    expect(taskRequests).toHaveLength(1);
+    expect(noteRequests).toHaveLength(1);
 
     const detail = getEventDetail(db, event.id)!;
     expect(detail.classifications).toEqual([original, result.classification]);
@@ -176,7 +170,7 @@ describe("corrections", () => {
       ["correction", "succeeded"],
     ]);
 
-    const taskDelivery = detail.deliveries.find((d) => d.delivery.integrationId === mail.id)!;
+    const taskDelivery = detail.deliveries.find((d) => d.correctionAttemptId === "correction-1")!;
     expect(detail.corrections).toEqual([
       {
         attemptId: "correction-1",
@@ -205,7 +199,7 @@ describe("corrections", () => {
     await correctToTask("correction-1");
     await correctToTask("correction-2", { ...taskFields, title: "Buy oat milk and bread" });
 
-    expect(mailRequests.map((request) => request.headers["Idempotency-Key"])).toEqual([
+    expect(taskRequests.map((request) => request.headers["Idempotency-Key"])).toEqual([
       createIdempotencyKey(event.id, "task.create", mail.id, "correction-1"),
       createIdempotencyKey(event.id, "task.create", mail.id, "correction-2"),
     ]);
@@ -225,7 +219,7 @@ describe("corrections", () => {
       readCorrectionInput({ attemptId: "bad-3", actionType: "command.execute", fields: {} })
     ).toThrow(AdminActionError);
 
-    expect(mailRequests).toHaveLength(0);
+    expect(taskRequests).toHaveLength(0);
     expect(listClassificationsForEvent(db, event.id)).toHaveLength(1);
     expect(listAttemptsForEvent(db, event.id).map((attempt) => attempt.stage)).toEqual([
       "classification",
@@ -261,7 +255,7 @@ describe("corrections", () => {
       "note.create",
     ]);
     // The same note has the same stable idempotency key, so it is not sent again.
-    expect(omniRequests).toHaveLength(1);
+    expect(noteRequests).toHaveLength(1);
   });
 });
 
@@ -306,7 +300,7 @@ describe("correction APIs", () => {
     const body = { attemptId: "api-correction", actionType: "task.create", fields: taskFields };
 
     expect((await post("reader-token", body)).status).toBe(403);
-    expect(mailRequests).toHaveLength(0);
+    expect(taskRequests).toHaveLength(0);
 
     const invalid = await post("operator-token", { ...body, fields: { title: "" } });
     expect(invalid.status).toBe(400);
@@ -318,6 +312,6 @@ describe("correction APIs", () => {
       duplicate: false,
       classification: { result: { correction: { correctedBy: "operator" } } },
     });
-    expect(mailRequests).toHaveLength(1);
+    expect(taskRequests).toHaveLength(1);
   });
 });

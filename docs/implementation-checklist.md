@@ -122,8 +122,8 @@ Objective: Allow recent related captures to influence classification without cre
 Objective: Route actions to the correct domain owner rather than storing domain state in Relay.
 ### Tasks
 - ☐ Implement integration registry and event route resolution.
-- ☐ Create a Mail adapter for task.create and reminder.create.
-- ☐ Create an OmniApp adapter for package.detected and optionally note.create/note.append if OmniApp is the initial notes owner.
+- ☐ Create a Mail adapter for task.create, reminder.create, note.create, and note.append.
+- ☐ Create an OmniApp adapter for package.detected.
 - ☐ Keep routing configuration-driven where practical.
 - ☐ Persist the selected route before delivery.
 - ☐ Persist the downstream object ID returned by the destination.
