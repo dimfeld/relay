@@ -19,6 +19,7 @@
     from?: string;
     to?: string;
     submitCommand: (input: ActivityCommandSubmission) => Promise<string>;
+    testCommand: (input: { text: string }) => Promise<import("$lib/server/events/preview").WebCommandPreview>;
     refreshActivity: () => Promise<unknown>;
   }
 
@@ -31,6 +32,7 @@
     from = $bindable(""),
     to = $bindable(""),
     submitCommand,
+    testCommand,
     refreshActivity,
   }: Props = $props();
 
@@ -59,6 +61,7 @@
   <ActivityCommandForm
     state={commandForm}
     {submitCommand}
+    {testCommand}
     {refreshActivity}
   />
 

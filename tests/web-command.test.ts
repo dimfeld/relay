@@ -20,6 +20,7 @@ import {
 import { createClassificationWorker } from "../src/lib/server/queue/workers";
 import { ingestPebbleWebhook } from "../src/lib/server/events/pebble";
 import { ingestWebCommand } from "../src/lib/server/events/web";
+import { previewWebCommand } from "../src/lib/server/events/preview";
 import { fakeJev, fakeLuna } from "./classifier-fakes";
 
 const databases: Database[] = [];
@@ -90,6 +91,78 @@ test("web command stores one web capture and one classification job", () => {
     type: "web.command",
     text: "Remind me to call Sam.",
   });
+});
+
+test("test mode classifies and resolves the route without writing or delivering", async () => {
+  const db = testDatabase();
+  const prior = createEvent(db, {
+    id: "prior",
+    source: "web",
+    type: "web.command",
+    receivedAt: "2026-09-27T11:59:00.000Z",
+    text: "The project is Relay.",
+    payload: { text: "The project is Relay." },
+  });
+  const mail = createIntegration(db, {
+    id: "mail",
+    name: "Mail",
+    kind: "mail",
+    baseUrl: "https://mail.test",
+    config: {},
+  });
+  createEventRoute(db, {
+    id: "task-route",
+    actionType: "task.create",
+    integrationId: mail.id,
+    config: {},
+  });
+  const before = db
+    .query<{ count: number }, []>("SELECT count(*) AS count FROM incoming_events")
+    .get()!.count;
+  const jev = fakeJev({ action_type: "task", coding_executor: "unspecified" });
+  const luna = fakeLuna({ type: "task.create", title: "Call Sam", notes: null, dueAt: null });
+  const result = await previewWebCommand({ text: "  Call Sam  " }, "preview-correlation", {
+    db,
+    config: {},
+    classifierConfig: {
+      TYPESAFE_API_KEY: "test",
+      OPENAI_API_KEY: "test",
+      JEV_MODEL: "jev-test",
+      LUNA_MODEL: "luna-test",
+      CLASSIFIER_CONTEXT_LIMIT: 10,
+      CLASSIFIER_CONTEXT_MAX_AGE_MINUTES: 15,
+    },
+    providers: { jev, luna },
+    loadCategories: async () => [],
+    now: () => "2026-09-27T12:00:00.000Z",
+  });
+
+  expect(result.status).toBe("classified");
+  if (result.status !== "classified") throw new Error("Expected a classified preview.");
+  expect(result.action).toMatchObject({ type: "task.create", title: "Call Sam" });
+  expect(result.record.selectedContextIds).toEqual([prior.id]);
+  expect(result.record.luna[0].output).toMatchObject({ title: "Call Sam" });
+  expect(result.route).toEqual({
+    id: "task-route",
+    integrationId: "mail",
+    integrationName: "Mail",
+  });
+  expect(jev.requests).toHaveLength(1);
+  expect(luna.requests).toHaveLength(1);
+  expect(
+    db.query<{ count: number }, []>("SELECT count(*) AS count FROM incoming_events").get()!.count
+  ).toBe(before);
+  for (const table of [
+    "jobs",
+    "classifications",
+    "processing_attempts",
+    "deliveries",
+    "action_results",
+  ]) {
+    expect(
+      db.query<{ count: number }, []>(`SELECT count(*) AS count FROM ${table}`).get()!.count
+    ).toBe(0);
+  }
 });
 
 test("empty or non-text command input does not store an event or enqueue a job", () => {

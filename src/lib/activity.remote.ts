@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ACTIVITY_STATUSES, getActivityFilterOptions, listActivity } from "$lib/server/activity";
 import { getServerContext } from "$lib/server/context";
 import { ingestWebCommand, webCommandInputSchema } from "$lib/server/events/web";
+import { previewWebCommand } from "$lib/server/events/preview";
 
 const activityFiltersSchema = z.object({
   source: z.string().optional(),
@@ -30,4 +31,10 @@ export const submitActivityCommand = command(webCommandInputSchema, (input) => {
   const { db } = getServerContext();
   const { locals } = getRequestEvent();
   return ingestWebCommand(db, input, locals.correlationId).eventId;
+});
+
+export const testActivityCommand = command(webCommandInputSchema.pick({ text: true }), (input) => {
+  const { db, config } = getServerContext();
+  const { locals } = getRequestEvent();
+  return previewWebCommand(input, locals.correlationId, { db, config });
 });

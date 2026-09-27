@@ -123,6 +123,9 @@ function renderActivity(
       events,
       options,
       submitCommand: async () => "event-id",
+      testCommand: async () => {
+        throw new Error("Unused test command");
+      },
       refreshActivity: async () => {},
     },
   });
@@ -199,6 +202,7 @@ describe("Activity view", () => {
     }).body;
     expect(initial).toMatch(/<label for="command-text"[^>]*>Command<\/label>/);
     expect(initial).toContain("Submit command</button>");
+    expect(initial).toContain("Test mode (show results without taking action)");
 
     const pendingState = createActivityCommandFormState();
     pendingState.text = "Call Sam";
@@ -283,5 +287,55 @@ describe("Activity view", () => {
       async () => {}
     );
     expect(state.eventId).toBe("event-2");
+  });
+
+  test("test mode shows a preview and does not submit or refresh Activity", async () => {
+    const state = createActivityCommandFormState();
+    state.text = "Call Sam";
+    state.testMode = true;
+    const preview = {
+      status: "classified" as const,
+      action: {
+        type: "task.create" as const,
+        title: "Call Sam",
+        notes: null,
+        dueAt: null,
+        categoryId: null,
+      },
+      record: {
+        normalizedText: "Call Sam",
+        signals: {} as never,
+        selectedContextIds: [],
+        jev: null,
+        luna: [],
+        reason: "classified as task.create",
+      },
+      route: { id: "task-route", integrationId: "mail", integrationName: "Mail" },
+    };
+    let submissions = 0;
+    let refreshes = 0;
+    await submitActivityCommandForm(
+      state,
+      async () => {
+        submissions++;
+        return "unexpected";
+      },
+      async () => {
+        refreshes++;
+      },
+      async () => preview
+    );
+    expect(submissions).toBe(0);
+    expect(refreshes).toBe(0);
+    expect(state.text).toBe("Call Sam");
+    expect(state.eventId).toBeNull();
+    expect(state.preview).toEqual(preview);
+    const body = render(ActivityCommandForm, {
+      props: { state, submitCommand: async () => "unexpected", refreshActivity: async () => {} },
+    }).body;
+    expect(body).toContain("No action was taken. No event was saved.");
+    expect(body).toContain("Mail (route task-route)");
+    expect(body).toContain("Call Sam");
+    expect(body).toContain("Classification and extraction details");
   });
 });

@@ -1,6 +1,6 @@
 <script lang="ts">
   import ActivityView from "$lib/components/ActivityView.svelte";
-  import { getActivityView, submitActivityCommand } from "$lib/activity.remote";
+  import { getActivityView, submitActivityCommand, testActivityCommand } from "$lib/activity.remote";
   import type { ActivityStatus } from "$lib/server/activity";
 
   let source = $state("");
@@ -47,5 +47,6 @@
   bind:from
   bind:to
   submitCommand={submitActivityCommand}
+  testCommand={testActivityCommand}
   {refreshActivity}
 />
