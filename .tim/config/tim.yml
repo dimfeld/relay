@@ -3,6 +3,7 @@
 defaultExecutor: claude-code
 quality: hobby
 developmentWorkflow: squash-rebase
+planAutocompleteStatus: done
 generate:
   queueWhenDone: true
   model:
